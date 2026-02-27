@@ -1,139 +1,148 @@
-# Flash — AI Prediction Market Trading Agent
+# Flash
 
-> BNB Chain x YZi Labs Hackathon, Bengaluru 2026
+BNB Chain prediction-market agent stack for hackathon demos and production-style integrations.
 
-Flash is a conversational AI agent that **analyzes, compares, and trades** prediction markets on BNB Chain. Built on ElizaOS with cross-platform arbitrage detection across **Opinion.trade** and **Predict.fun**.
+Flash is now structured as a monorepo with three core surfaces:
+1. `flash-agent` for agent runtime + gateway APIs.
+2. `frontend` for landing UI + public `skill.md` files (OpenClaw/agent discovery).
+3. `contracts` for on-chain components (FlashAgent + ERC-8004 registries work).
 
-## What Flash Does
+## Current Product Shape
 
-| Capability | Description |
-|---|---|
-| **Vibe Trade** | Say "I think BTC stays above $90k" → Flash finds markets, researches, computes edge, recommends action |
-| **URL Analysis** | Paste any Opinion.trade or Predict.fun link → instant deep analysis |
-| **Arbitrage Scan** | Cross-platform price comparison, finds risk-free profit opportunities |
-| **Human-in-the-Loop** | Never auto-trades — always asks for explicit approval |
-| **On-Chain Identity** | BAP-578 NFA with verifiable trade history on BSC testnet |
+Flash is moving to an OpenClaw-first model:
+1. External agents discover `https://<domain>/skill.md`.
+2. They route actions to Flash Gateway (`/v1` or `/api/v1`).
+3. Flash orchestrates markets, analysis, quote/execute, positions, arb, yield, identity.
 
-## Architecture
+## What Is Live Right Now
 
+1. Unified market listing and analysis across Predict.fun + Opinion.
+2. Signed gateway API with HMAC auth, replay protection, confirmation tokens, idempotency.
+3. Human-in-the-loop trading flow: `quote -> confirm -> execute`.
+4. Durable fill ledger for positions (`.flash/trade-fills.jsonl`) with live price refresh.
+5. Public skill artifacts under `frontend/public` (`skill.md`, `skill-*.md`, `rules.md`, `heartbeat.md`).
+
+## Important Execution Notes
+
+1. Predict.fun execution path is wired for real order submission attempts.
+2. Opinion execution is intentionally gated by `OPINION_EXECUTION_ENABLED` (default `false`) until full CLOB signing integration is enabled.
+3. Positions are ledger-backed from real fills, then enriched with live prices.
+4. Analysis is strict (no fake fallback): if research model output is invalid, analysis fails clearly.
+
+## Monorepo Layout
+
+```text
+bnb-hack/
+├── README.md
+├── package.json
+├── contracts/
+│   ├── src/
+│   └── scripts/
+├── flash-agent/
+│   ├── src/plugin-flash/
+│   ├── src/gateway/
+│   ├── openapi/flash-gateway.v1.yaml
+│   └── .env.example
+├── frontend/
+│   ├── src/
+│   └── public/
+│       ├── skill.md
+│       ├── skill.json
+│       ├── skill-market-intel.md
+│       ├── skill-trading.md
+│       ├── skill-portfolio.md
+│       ├── skill-identity.md
+│       ├── rules.md
+│       └── heartbeat.md
+└── skills/flash-gateway/
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    ElizaOS Framework                     │
-│  ┌──────────┐  ┌──────────┐  ┌───────────┐             │
-│  │  Claude   │  │  OpenAI  │  │ Telegram  │             │
-│  │ (reason)  │  │ (embed)  │  │   (chat)  │             │
-│  └──────────┘  └──────────┘  └───────────┘             │
-├─────────────────────────────────────────────────────────┤
-│                    Plugin Flash                          │
-│                                                         │
-│  Actions:                                               │
-│  ┌──────────────┐ ┌───────────────┐ ┌──────────────┐   │
-│  │ANALYZE_MARKET│ │ SCAN_ARBITRAGE│ │EXECUTE_TRADE │   │
-│  │ thesis + URL │ │ cross-platform│ │ human-in-loop│   │
-│  └──────┬───────┘ └──────┬────────┘ └──────┬───────┘   │
-│         │                │                  │           │
-│  ┌──────┴────────────────┴──────────────────┴───────┐   │
-│  │              Market Aggregator                    │   │
-│  ├──────────────────┬───────────────────────────────┤   │
-│  │  Opinion.trade   │      Predict.fun              │   │
-│  │  (REST API)      │      (SDK + REST)             │   │
-│  └──────────────────┴───────────────────────────────┘   │
-│                                                         │
-│  Services:                                              │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐       │
-│  │ Arb Engine  │ │ URL Parser  │ │Event Matcher │       │
-│  │ intra+cross │ │opinion+pf   │ │canonical hash│       │
-│  └─────────────┘ └─────────────┘ └─────────────┘       │
-├─────────────────────────────────────────────────────────┤
-│                    BNB Chain (BSC)                        │
-│  ┌──────────────┐ ┌──────────────┐                      │
-│  │ FlashAgent   │ │  EIP-712     │                      │
-│  │ NFA (BAP-578)│ │  Signing     │                      │
-│  └──────────────┘ └──────────────┘                      │
-└─────────────────────────────────────────────────────────┘
-```
 
-## Quick Start
+## Quick Start (Local)
+
+1. Install dependencies.
 
 ```bash
-# 1. Clone and install
-git clone https://github.com/your-repo/bnb-hack.git
-cd bnb-hack/flash-agent
-bun install
+cd flash-agent && bun install
+cd ../frontend && bun install
+cd ../contracts && npm install
+```
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env: add OPENAI_API_KEY and/or ANTHROPIC_API_KEY
+2. Configure runtime env.
 
-# 3. Start Flash
+```bash
+cp flash-agent/.env.example flash-agent/.env
+```
+
+3. Set model provider (MiniMax M2.5 via OpenAI-compatible interface).
+
+```env
+MINIMAX_API_KEY=...
+MINIMAX_BASE_URL=https://api.minimax.io/v1
+MINIMAX_SMALL_MODEL=MiniMax-M2.5
+MINIMAX_LARGE_MODEL=MiniMax-M2.5
+```
+
+4. Start agent.
+
+```bash
+cd flash-agent
 bun x @elizaos/cli start
-
-# 4. Open web chat
-open http://localhost:3000
 ```
 
-## Demo Conversations
+5. Start frontend (second terminal).
 
-### Vibe Trade with Deep Research
-```
-You: "I think BTC will hold above $90k through Thursday. What's the play?"
-Flash: [Researches 12+ data sources, finds matching markets, computes edge]
-       → Recommend: Buy YES on Predict.fun at $0.58 (+10% edge)
-       → Arb Alert: Cross-platform spread = $0.03
-
-You: "Execute option 1"
-Flash: → Order placed on Predict.fun testnet ✓
+```bash
+cd frontend
+bun run dev
 ```
 
-### Arbitrage Scan
-```
-You: "Find me any guaranteed profit"
-Flash: [Scans all markets across Opinion + Predict.fun]
-       → Opportunity: Buy YES on PF + NO on Opinion = $0.03/share risk-free
-```
+## Gateway API Surface
 
-## Tech Stack
+OpenAPI source: `flash-agent/openapi/flash-gateway.v1.yaml`
 
-- **Framework:** ElizaOS v1.7.2
-- **AI:** Claude (reasoning) + OpenAI (embeddings)
-- **Markets:** Opinion.trade REST API + Predict.fun SDK
-- **Chain:** BNB Chain (BSC testnet)
-- **Contract:** BAP-578 NFA (FlashAgent.sol)
-- **Language:** TypeScript + Solidity
+Main endpoints:
+1. `GET /v1/system/health`
+2. `GET /v1/system/connectors`
+3. `POST /v1/markets/list`
+4. `POST /v1/markets/analyze`
+5. `POST /v1/trades/quote`
+6. `POST /v1/trades/execute` (requires `Idempotency-Key`)
+7. `POST /v1/positions/list`
+8. `POST /v1/arb/scan`
+9. `POST /v1/yield/manage`
+10. `GET /v1/agent/identity`
 
-## Project Structure
+Also available under `/api/v1/*`.
 
-```
-bnb-hack/
-├── flash-agent/           # ElizaOS agent project
-│   └── src/
-│       ├── character.ts   # Flash agent personality
-│       ├── index.ts       # Entry point
-│       └── plugin-flash/  # Core plugin
-│           ├── actions/   # ANALYZE, EXECUTE, SCAN, etc.
-│           ├── providers/ # Market data, portfolio context
-│           ├── services/  # Opinion, Predict.fun, ArbEngine
-│           ├── types/     # Shared TypeScript types
-│           └── utils/     # URL parser, event matching
-├── contracts/             # Smart contracts
-│   └── src/
-│       └── FlashAgent.sol # BAP-578 NFA implementation
-├── skill/
-│   └── SKILL.md          # OpenClaw skill definition
-└── README.md
-```
+## OpenClaw Skill Hosting
 
-## Why This Wins
+To make any OpenClaw-style agent use Flash:
+1. Host frontend public files on your domain.
+2. Ensure `https://<domain>/skill.md` is reachable.
+3. Replace all `YOUR_WEBSITE_DOMAIN` placeholders in skill files.
+4. Point `api_base` to your gateway (`https://<domain>/api/v1` or dedicated API domain).
 
-1. **ElizaOS + BNB plugin** — ecosystem-native, judges see alignment
-2. **BAP-578 NFA** — on-chain agent identity, BNB's newest standard
-3. **Cross-platform aggregation** — Opinion + Predict.fun in one agent
-4. **Deep research + statistical edge** — model prob vs market prob with quantified EV
-5. **Human-in-the-loop** — responsible AI, never auto-trades
-6. **URL intake** — paste any market link for instant analysis
-7. **Arbitrage detection** — risk-free profit layer
-8. **OpenClaw SKILL.md** — distribution to 150k+ agent users
+## Deploy (Recommended)
 
-## License
+VPS deployment (single domain) is straightforward:
+1. Run gateway as long-lived process (systemd/pm2/docker) on internal port.
+2. Serve frontend static build via Nginx.
+3. Proxy `/api/*` from Nginx to gateway.
+4. Keep HMAC secrets and wallet keys only on server env.
 
-MIT
+## Root Scripts
+
+From repo root:
+1. `bun run start` -> starts Flash agent (`flash-agent`).
+2. `bun run dev` -> starts Flash agent dev mode.
+3. `bun run build` -> builds `flash-agent`.
+4. `bun run compile` -> compiles contracts.
+5. `bun run deploy:testnet` -> runs testnet deploy script.
+
+## Security Basics
+
+1. Never commit `.env`.
+2. Rotate exposed API keys immediately.
+3. Keep `FLASH_KEYS_JSON`, signing secrets, private keys server-side only.
+4. Keep human confirmation for all trade executes.
+

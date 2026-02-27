@@ -1,122 +1,63 @@
-# Project Starter
+# flash-agent
 
-This is the starter template for ElizaOS projects.
+Flash runtime package (ElizaOS) with:
+1. `plugin-flash` actions/services.
+2. Flash Gateway HTTP routes (`/v1` and `/api/v1`).
+3. OpenAPI contract at `openapi/flash-gateway.v1.yaml`.
 
-## Features
+## Core Responsibilities
 
-- Pre-configured project structure for ElizaOS development
-- Comprehensive testing setup with component and e2e tests
-- Default character configuration with plugin integration
-- Example service, action, and provider implementations
-- TypeScript configuration for optimal developer experience
-- Built-in documentation and examples
+1. Market aggregation (Predict.fun + Opinion).
+2. Thesis analysis and recommendation generation.
+3. Human-in-the-loop trade quote/execute flow.
+4. Ledger-backed positions and PnL refresh.
+5. Optional ERC-8004 identity/reputation hooks.
 
-## Getting Started
-
-```bash
-# Create a new project
-elizaos create --type project my-project
-# Dependencies are automatically installed and built
-
-# Navigate to the project directory
-cd my-project
-
-# Start development immediately
-elizaos dev
-```
-
-## Development
+## Local Setup
 
 ```bash
-# Start development with hot-reloading (recommended)
-elizaos dev
-
-# OR start without hot-reloading
-elizaos start
-# Note: When using 'start', you need to rebuild after changes:
-# bun run build
-
-# Test the project
-elizaos test
+bun install
+cp .env.example .env
 ```
 
-## Testing
+Set at minimum:
 
-ElizaOS employs a dual testing strategy:
-
-1. **Component Tests** (`src/__tests__/*.test.ts`)
-
-   - Run with Bun's native test runner
-   - Fast, isolated tests using mocks
-   - Perfect for TDD and component logic
-
-2. **E2E Tests** (`src/__tests__/e2e/*.e2e.ts`)
-   - Run with ElizaOS custom test runner
-   - Real runtime with actual database (PGLite)
-   - Test complete user scenarios
-
-### Test Structure
-
-```
-src/
-  __tests__/              # All tests live inside src
-    *.test.ts            # Component tests (use Bun test runner)
-    e2e/                 # E2E tests (use ElizaOS test runner)
-      project-starter.e2e.ts  # E2E test suite
-      README.md          # E2E testing documentation
-  index.ts               # Export tests here: tests: [ProjectStarterTestSuite]
+```env
+MINIMAX_API_KEY=...
+MINIMAX_BASE_URL=https://api.minimax.io/v1
+MINIMAX_SMALL_MODEL=MiniMax-M2.5
+MINIMAX_LARGE_MODEL=MiniMax-M2.5
 ```
 
-### Running Tests
+Optional trading keys/settings:
 
-- `elizaos test` - Run all tests (component + e2e)
-- `elizaos test component` - Run only component tests
-- `elizaos test e2e` - Run only E2E tests
-
-### Writing Tests
-
-Component tests use bun:test:
-
-```typescript
-// Unit test example (__tests__/config.test.ts)
-describe('Configuration', () => {
-  it('should load configuration correctly', () => {
-    expect(config.debug).toBeDefined();
-  });
-});
-
-// Integration test example (__tests__/integration.test.ts)
-describe('Integration: Plugin with Character', () => {
-  it('should initialize character with plugins', async () => {
-    // Test interactions between components
-  });
-});
+```env
+BNB_PRIVATE_KEY=
+BNB_PUBLIC_KEY=
+OPINION_ENABLED=false
+OPINION_API_KEY=
+OPINION_EXECUTION_ENABLED=false
+FLASH_KEYS_JSON={"demo":{"secret":"replace-me","enabled":true}}
 ```
 
-E2E tests use ElizaOS test interface:
+## Run
 
-```typescript
-// E2E test example (e2e/project.test.ts)
-export class ProjectTestSuite implements TestSuite {
-  name = 'project_test_suite';
-  tests = [
-    {
-      name: 'project_initialization',
-      fn: async (runtime) => {
-        // Test project in a real runtime
-      },
-    },
-  ];
-}
-
-export default new ProjectTestSuite();
+```bash
+bun x @elizaos/cli start
 ```
 
-The test utilities in `__tests__/utils/` provide helper functions to simplify writing tests.
+## Key Paths
 
-## Configuration
+1. `src/plugin-flash/actions/*`
+2. `src/plugin-flash/services/*`
+3. `src/gateway/routes/v1.ts`
+4. `src/gateway/services/*`
+5. `openapi/flash-gateway.v1.yaml`
 
-Customize your project by modifying:
+## API Notes
 
-- `src/index.ts` - Main entry point
-- `src/character.ts` - Character definition
+1. HMAC headers are required for secured endpoints.
+2. Trade execution requires `Idempotency-Key` and confirmation token from quote.
+3. Positions are reconstructed from fill ledger and then live-priced.
+
+For full monorepo docs and deploy topology, see root README: `../README.md`.
