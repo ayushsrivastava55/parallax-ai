@@ -2,6 +2,7 @@ import { LiveTicker } from './components/LiveTicker';
 import { TerminalDemo } from './components/TerminalDemo';
 import { ArbitragePulse } from './components/ArbitragePulse';
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 /* ── Layout primitives ────────────────────────────── */
 
@@ -88,7 +89,7 @@ function Nav() {
         <a href="#how" style={{ fontFamily: 'var(--sans)', fontSize: 12.5, color: 'var(--t2)' }}>How it works</a>
         <a href="#demo" style={{ fontFamily: 'var(--sans)', fontSize: 12.5, color: 'var(--t2)' }}>Demo</a>
         <a href="#arb" style={{ fontFamily: 'var(--sans)', fontSize: 12.5, color: 'var(--t2)' }}>Arbitrage</a>
-        <a href="#demo" style={{
+        <Link to="/chat" style={{
           fontFamily: 'var(--mono)',
           fontSize: 11,
           fontWeight: 600,
@@ -97,7 +98,7 @@ function Nav() {
           padding: '6px 16px',
           borderRadius: 3,
           letterSpacing: '0.02em',
-        }}>Launch</a>
+        }}>Launch</Link>
       </div>
     </nav>
   );
@@ -179,7 +180,7 @@ function Hero() {
             gap: 10,
             animation: 'fadeUp 0.6s ease 0.24s both',
           }}>
-            <a href="#demo" style={{
+            <Link to="/chat" style={{
               fontFamily: 'var(--mono)',
               fontSize: 12,
               fontWeight: 600,
@@ -189,8 +190,8 @@ function Hero() {
               borderRadius: 3,
               letterSpacing: '0.02em',
             }}>
-              See it trade
-            </a>
+              Try Flash live
+            </Link>
             <a href="#how" style={{
               fontFamily: 'var(--mono)',
               fontSize: 12,
@@ -422,6 +423,12 @@ function Footer() {
 
 export default function App() {
   useReveal();
+
+  // Enable grain overlay on landing page only
+  useEffect(() => {
+    document.body.classList.add('show-grain');
+    return () => { document.body.classList.remove('show-grain'); };
+  }, []);
 
   return (
     <>

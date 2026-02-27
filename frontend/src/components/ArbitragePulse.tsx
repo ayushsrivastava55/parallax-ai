@@ -1,36 +1,75 @@
 import { useState, useEffect } from 'react';
 
-const ARBS = [
-  {
-    market: 'ETH > $4,000 by March',
-    a: { platform: 'Opinion', side: 'YES', price: 0.42 },
-    b: { platform: 'Predict.fun', side: 'NO', price: 0.55 },
-    combined: 0.97,
-    profit: '3.1',
-  },
-  {
-    market: 'Fed Rate Hold March',
-    a: { platform: 'Predict.fun', side: 'YES', price: 0.91 },
-    b: { platform: 'Opinion', side: 'NO', price: 0.07 },
-    combined: 0.98,
-    profit: '2.0',
-  },
-  {
-    market: 'BTC > $100k by April',
-    a: { platform: 'Opinion', side: 'YES', price: 0.31 },
-    b: { platform: 'Predict.fun', side: 'NO', price: 0.65 },
-    combined: 0.96,
-    profit: '4.2',
-  },
-];
+interface ArbData {
+  market: string;
+  a: { platform: string; side: string; price: number };
+  b: { platform: string; side: string; price: number };
+  combined: number;
+  profit: string;
+}
+
+function platformLabel(p: string): string {
+  return p === 'predictfun' ? 'Predict.fun' : p === 'opinion' ? 'Opinion' : p;
+}
+
+function mapApiToArbs(apiData: any[]): ArbData[] {
+  return apiData.slice(0, 5).map((opp) => {
+    const legs = opp.legs || [];
+    const legA = legs[0] || {};
+    const legB = legs[1] || {};
+    return {
+      market: opp.marketTitle || 'Unknown Market',
+      a: {
+        platform: platformLabel(legA.platform || ''),
+        side: legA.outcome || 'YES',
+        price: legA.price || 0,
+      },
+      b: {
+        platform: platformLabel(legB.platform || ''),
+        side: legB.outcome || 'NO',
+        price: legB.price || 0,
+      },
+      combined: opp.totalCost || 0,
+      profit: (opp.profitPercent || 0).toFixed(1),
+    };
+  });
+}
 
 export function ArbitragePulse() {
+  const [arbs, setArbs] = useState<ArbData[]>([]);
   const [active, setActive] = useState(0);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch real arb data from agent
   useEffect(() => {
-    const i = setInterval(() => setActive(a => (a + 1) % ARBS.length), 3500);
-    return () => clearInterval(i);
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const res = await fetch('/api/flash/arb-scan');
+        if (!res.ok) throw new Error('not ok');
+        const json = await res.json();
+        if (json.success && json.data?.length > 0 && mounted) {
+          setArbs(mapApiToArbs(json.data));
+        }
+      } catch {
+        // No data available
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    const poll = setInterval(load, 30000);
+    return () => { mounted = false; clearInterval(poll); };
   }, []);
+
+  // Cycle active item
+  useEffect(() => {
+    if (arbs.length === 0) return;
+    const i = setInterval(() => setActive(a => (a + 1) % arbs.length), 3500);
+    return () => clearInterval(i);
+  }, [arbs.length]);
 
   return (
     <div style={{
@@ -53,17 +92,17 @@ export function ArbitragePulse() {
           width: 5,
           height: 5,
           borderRadius: '50%',
-          background: 'var(--green)',
-          animation: 'pulse-dot 2s ease infinite',
+          background: arbs.length > 0 ? 'var(--green)' : 'var(--t3)',
+          animation: arbs.length > 0 ? 'pulse-dot 2s ease infinite' : 'none',
         }} />
         <span style={{
           fontFamily: 'var(--mono)',
           fontSize: 10,
           fontWeight: 600,
-          color: 'var(--green)',
+          color: arbs.length > 0 ? 'var(--green)' : 'var(--t3)',
           letterSpacing: '0.1em',
         }}>
-          ARB SCANNER
+          ARB SCANNER{arbs.length > 0 ? ' — LIVE' : ''}
         </span>
         <span style={{
           fontFamily: 'var(--mono)',
@@ -71,80 +110,94 @@ export function ArbitragePulse() {
           color: 'var(--t3)',
           marginLeft: 'auto',
         }}>
-          {ARBS.length} found
+          {arbs.length > 0 ? `${arbs.length} found` : loading ? 'scanning...' : 'connect agent to scan'}
         </span>
       </div>
 
       {/* Opportunities */}
       <div style={{ padding: '8px' }}>
-        {ARBS.map((arb, i) => {
-          const isActive = i === active;
-          return (
-            <div key={i} style={{
-              padding: '12px',
-              borderRadius: 2,
-              marginBottom: i < ARBS.length - 1 ? 4 : 0,
-              background: isActive ? 'var(--gold-dim)' : 'transparent',
-              borderLeft: isActive ? '2px solid var(--gold)' : '2px solid transparent',
-              opacity: isActive ? 1 : 0.35,
-              transition: 'all 0.4s ease',
-            }}>
-              <div style={{
-                fontFamily: 'var(--sans)',
-                fontSize: 13,
-                fontWeight: 600,
-                marginBottom: 8,
-                color: 'var(--t1)',
+        {arbs.length === 0 ? (
+          <div style={{
+            padding: '20px 12px',
+            fontFamily: 'var(--mono)',
+            fontSize: 11,
+            color: 'var(--t3)',
+            textAlign: 'center',
+          }}>
+            {loading
+              ? 'Scanning cross-platform opportunities...'
+              : 'Start agent to scan for arbitrage opportunities'}
+          </div>
+        ) : (
+          arbs.map((arb, i) => {
+            const isActive = i === active;
+            return (
+              <div key={i} style={{
+                padding: '12px',
+                borderRadius: 2,
+                marginBottom: i < arbs.length - 1 ? 4 : 0,
+                background: isActive ? 'var(--gold-dim)' : 'transparent',
+                borderLeft: isActive ? '2px solid var(--gold)' : '2px solid transparent',
+                opacity: isActive ? 1 : 0.35,
+                transition: 'all 0.4s ease',
               }}>
-                {arb.market}
-              </div>
-
-              <div style={{
-                fontFamily: 'var(--mono)',
-                fontSize: 11,
-                display: 'grid',
-                gridTemplateColumns: '1fr auto 1fr auto',
-                gap: 8,
-                alignItems: 'center',
-              }}>
-                <div>
-                  <div style={{ color: 'var(--t3)', fontSize: 9, letterSpacing: '0.05em' }}>{arb.a.platform}</div>
-                  <div style={{ color: 'var(--cyan)' }}>{arb.a.side} ${arb.a.price.toFixed(2)}</div>
-                </div>
-                <span style={{ color: 'var(--t3)', fontSize: 14 }}>+</span>
-                <div>
-                  <div style={{ color: 'var(--t3)', fontSize: 9, letterSpacing: '0.05em' }}>{arb.b.platform}</div>
-                  <div style={{ color: 'var(--red)' }}>{arb.b.side} ${arb.b.price.toFixed(2)}</div>
-                </div>
                 <div style={{
-                  fontWeight: 700,
-                  fontSize: 14,
-                  color: 'var(--green)',
-                  textAlign: 'right',
+                  fontFamily: 'var(--sans)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  marginBottom: 8,
+                  color: 'var(--t1)',
                 }}>
-                  +{arb.profit}%
+                  {arb.market}
                 </div>
-              </div>
 
-              {isActive && (
                 <div style={{
-                  marginTop: 8,
-                  paddingTop: 8,
-                  borderTop: '1px solid var(--line)',
                   fontFamily: 'var(--mono)',
-                  fontSize: 10,
-                  color: 'var(--t3)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
+                  fontSize: 11,
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto 1fr auto',
+                  gap: 8,
+                  alignItems: 'center',
                 }}>
-                  <span>cost ${arb.combined.toFixed(2)}</span>
-                  <span>payout $1.00</span>
-                  <span style={{ color: 'var(--green)' }}>risk-free</span>
+                  <div>
+                    <div style={{ color: 'var(--t3)', fontSize: 9, letterSpacing: '0.05em' }}>{arb.a.platform}</div>
+                    <div style={{ color: 'var(--cyan)' }}>{arb.a.side} ${arb.a.price.toFixed(2)}</div>
+                  </div>
+                  <span style={{ color: 'var(--t3)', fontSize: 14 }}>+</span>
+                  <div>
+                    <div style={{ color: 'var(--t3)', fontSize: 9, letterSpacing: '0.05em' }}>{arb.b.platform}</div>
+                    <div style={{ color: 'var(--red)' }}>{arb.b.side} ${arb.b.price.toFixed(2)}</div>
+                  </div>
+                  <div style={{
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: 'var(--green)',
+                    textAlign: 'right',
+                  }}>
+                    +{arb.profit}%
+                  </div>
                 </div>
-              )}
-            </div>
-          );
-        })}
+
+                {isActive && (
+                  <div style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: '1px solid var(--line)',
+                    fontFamily: 'var(--mono)',
+                    fontSize: 10,
+                    color: 'var(--t3)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                  }}>
+                    <span>cost ${arb.combined.toFixed(2)}</span>
+                    <span>payout $1.00</span>
+                    <span style={{ color: 'var(--green)' }}>risk-free</span>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

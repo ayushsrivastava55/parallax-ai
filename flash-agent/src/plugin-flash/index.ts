@@ -12,6 +12,11 @@ import { getPositionsAction } from './actions/getPositions.ts';
 import { marketDataProvider } from './providers/marketData.ts';
 import { portfolioProvider } from './providers/portfolio.ts';
 
+// Services
+import { PredictFunService } from './services/predictfun.ts';
+import { OpinionService } from './services/opinion.ts';
+import { ArbEngine } from './services/arbEngine.ts';
+
 const flashPlugin: Plugin = {
   name: 'flash',
   description:
@@ -34,6 +39,38 @@ const flashPlugin: Plugin = {
   providers: [
     marketDataProvider,
     portfolioProvider,
+  ],
+
+  routes: [
+    {
+      type: 'GET',
+      path: '/api/flash/arb-scan',
+      handler: async (_req, res, runtime) => {
+        try {
+          const predictfun = new PredictFunService({ useTestnet: true });
+          const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
+          const opinion = new OpinionService({
+            enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
+            apiKey: opinionKey,
+          });
+          const arbEngine = new ArbEngine({ predictfun, opinion });
+
+          const opportunities = await arbEngine.scanAll();
+          res.json({
+            success: true,
+            data: opportunities,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          logger.error({ error }, 'Arb scan route error');
+          res.status(500).json({
+            success: false,
+            data: [],
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      },
+    },
   ],
 };
 

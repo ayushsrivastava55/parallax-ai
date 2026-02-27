@@ -9,10 +9,19 @@ import type {
 import { logger } from '@elizaos/core';
 import { PredictFunService } from '../services/predictfun.ts';
 import { OpinionService } from '../services/opinion.ts';
-import type { Order, TradeResult } from '../types/index.ts';
+import { addPosition } from '../services/positionStore.ts';
+import { lastAnalysis } from './analyzeMarket.ts';
+import type { Order, TradeResult, Platform } from '../types/index.ts';
 
-// In-memory store for pending trades (in production, use proper state management)
-const pendingTrades = new Map<string, { order: Order; analysisSnapshot: any }>();
+interface TradeIntent {
+  platform: Platform;
+  marketId: string;
+  marketTitle: string;
+  outcomeId: string;
+  outcome: string;
+  shares: number;
+  price: number;
+}
 
 export const executeTradeAction: Action = {
   name: 'EXECUTE_TRADE',
@@ -54,7 +63,7 @@ export const executeTradeAction: Action = {
   handler: async (
     runtime: IAgentRuntime,
     message: Memory,
-    _state: State,
+    state: State,
     _options: any,
     callback: HandlerCallback,
     _responses: Memory[]
@@ -63,8 +72,8 @@ export const executeTradeAction: Action = {
       const text = message.content?.text || '';
       logger.info({ text }, 'EXECUTE_TRADE triggered');
 
-      // Parse trade intent from message
-      const tradeIntent = await parseTradeIntent(runtime, text);
+      // Parse trade intent from message + prior analysis
+      const tradeIntent = await parseTradeIntent(runtime, text, state);
 
       if (!tradeIntent) {
         await callback({
@@ -77,6 +86,7 @@ export const executeTradeAction: Action = {
 
       // Confirmation step — show what we're about to do
       const confirmText = `Confirming trade:\n\n` +
+        `  Market: ${tradeIntent.marketTitle}\n` +
         `  Platform: ${tradeIntent.platform === 'predictfun' ? 'Predict.fun' : 'Opinion'}\n` +
         `  Side: Buy ${tradeIntent.outcome}\n` +
         `  Shares: ${tradeIntent.shares}\n` +
@@ -107,25 +117,39 @@ export const executeTradeAction: Action = {
         const pf = new PredictFunService({ useTestnet: true });
         result = await pf.placeOrder(order);
       } else {
-        const opinionKey = runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY;
+        const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
         const op = new OpinionService({
           enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
           apiKey: opinionKey,
-          privateKey: runtime.getSetting('BNB_PRIVATE_KEY') || process.env.BNB_PRIVATE_KEY,
+          privateKey: String(runtime.getSetting('BNB_PRIVATE_KEY') || process.env.BNB_PRIVATE_KEY || ''),
         });
         result = await op.placeOrder(order);
       }
 
+      // Track position in memory
+      if (result.status !== 'rejected') {
+        addPosition({
+          orderId: result.orderId,
+          marketId: tradeIntent.marketId,
+          platform: tradeIntent.platform,
+          marketTitle: tradeIntent.marketTitle,
+          outcomeLabel: tradeIntent.outcome,
+          size: result.filledSize,
+          entryPrice: result.filledPrice,
+          timestamp: result.timestamp,
+        });
+      }
+
       const resultText = result.status === 'rejected'
-        ? `❌ Trade rejected. ${tradeIntent.platform === 'opinion' ? 'Opinion API key or wallet not configured.' : 'Check wallet balance.'}`
-        : `✓ Order placed successfully!\n\n` +
+        ? `Trade rejected. ${tradeIntent.platform === 'opinion' ? 'Opinion API key or wallet not configured.' : 'Check wallet balance.'}`
+        : `Order placed successfully!\n\n` +
           `  Order ID: ${result.orderId}\n` +
           `  Status: ${result.status}\n` +
           `  Filled: ${result.filledSize} shares @ $${result.filledPrice.toFixed(2)}\n` +
           `  Cost: $${result.cost.toFixed(2)}\n` +
           `  Potential Payout: $${result.filledSize.toFixed(2)}\n` +
           (result.txHash ? `  TX: ${result.txHash}\n` : '') +
-          `\n  Analysis snapshot saved for audit trail.`;
+          `\n  Position tracked. Use "show my positions" to view portfolio.`;
 
       await callback({
         text: resultText,
@@ -194,35 +218,143 @@ export const executeTradeAction: Action = {
 
 async function parseTradeIntent(
   runtime: IAgentRuntime,
-  text: string
-): Promise<{
-  platform: 'predictfun' | 'opinion';
-  marketId: string;
-  outcomeId: string;
-  outcome: string;
-  shares: number;
-  price: number;
-} | null> {
-  // Try to extract from structured text
-  const sharesMatch = text.match(/(\d+)\s*(?:shares|yes|no)/i);
-  const shares = sharesMatch ? parseInt(sharesMatch[1]) : 100; // default 100
+  text: string,
+  state: State
+): Promise<TradeIntent | null> {
+  const lowerText = text.toLowerCase();
 
-  const isNo = /\bno\b/i.test(text);
+  // Parse user preferences from text
+  const sharesMatch = text.match(/(\d+)\s*(?:shares|yes|no)/i);
+  const shares = sharesMatch ? parseInt(sharesMatch[1]) : 100;
+
+  const isNo = /\bno\b/i.test(lowerText) && !lowerText.includes('option');
+  const isOption2 = /option\s*2/i.test(lowerText);
   const outcome = isNo ? 'NO' : 'YES';
 
-  const isPredictFun = text.toLowerCase().includes('predict');
-  const isOpinion = text.toLowerCase().includes('opinion');
-  const platform = isOpinion ? 'opinion' as const : 'predictfun' as const;
+  const explicitPredictFun = lowerText.includes('predict');
+  const explicitOpinion = lowerText.includes('opinion');
 
-  // Use a reasonable default price for demo
-  const price = outcome === 'YES' ? 0.58 : 0.42;
+  // Strategy 1: Use lastAnalysis (module-level, always available)
+  if (lastAnalysis) {
+    const analysis = lastAnalysis;
+    const market = analysis.market;
 
-  return {
-    platform,
-    marketId: 'demo-market',
-    outcomeId: outcome.toLowerCase(),
-    outcome,
-    shares,
-    price,
-  };
+    // Option 2 = arb trade (if available)
+    if (isOption2 && analysis.arbOpportunities.length > 0) {
+      const arb = analysis.arbOpportunities[0];
+      const leg = arb.legs[0];
+      return {
+        platform: leg.platform,
+        marketId: leg.marketId,
+        marketTitle: arb.marketTitle,
+        outcomeId: leg.outcome.toLowerCase(),
+        outcome: leg.outcome,
+        shares,
+        price: leg.price,
+      };
+    }
+
+    // Option 1 = directional (recommended) — use best-price platform
+    const bestCross = analysis.crossPlatformPrices.length > 0
+      ? analysis.crossPlatformPrices.sort((a, b) =>
+          outcome === 'YES' ? a.yesPrice - b.yesPrice : a.noPrice - b.noPrice
+        )[0]
+      : null;
+
+    const platform: Platform = explicitOpinion
+      ? 'opinion'
+      : explicitPredictFun
+      ? 'predictfun'
+      : bestCross?.platform ?? market.platform;
+
+    const yesOutcome = market.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes');
+    const noOutcome = market.outcomes.find((o) => o.label === 'NO' || o.label === 'No');
+
+    const price = outcome === 'YES'
+      ? (bestCross?.yesPrice ?? yesOutcome?.price ?? 0.5)
+      : (bestCross?.noPrice ?? noOutcome?.price ?? 0.5);
+
+    const outcomeObj = outcome === 'YES' ? yesOutcome : noOutcome;
+
+    return {
+      platform,
+      marketId: bestCross?.marketId ?? market.id,
+      marketTitle: market.title,
+      outcomeId: outcomeObj?.id ?? outcome.toLowerCase(),
+      outcome,
+      shares,
+      price,
+    };
+  }
+
+  // Strategy 2: Check state.data.actionResults for prior ANALYZE_MARKET
+  try {
+    const actionResults = (state as any)?.data?.actionResults;
+    if (Array.isArray(actionResults)) {
+      const analyzeResult = [...actionResults]
+        .reverse()
+        .find((r: any) => r.data?.actionName === 'ANALYZE_MARKET' && r.success);
+
+      if (analyzeResult?.data?.analysis) {
+        const analysis = analyzeResult.data.analysis;
+        const market = analysis.market;
+        const yesOutcome = market.outcomes.find((o: any) => o.label === 'YES' || o.label === 'Yes');
+        const noOutcome = market.outcomes.find((o: any) => o.label === 'NO' || o.label === 'No');
+
+        const price = outcome === 'YES'
+          ? (yesOutcome?.price ?? 0.5)
+          : (noOutcome?.price ?? 0.5);
+
+        return {
+          platform: market.platform,
+          marketId: market.id,
+          marketTitle: market.title,
+          outcomeId: (outcome === 'YES' ? yesOutcome?.id : noOutcome?.id) ?? outcome.toLowerCase(),
+          outcome,
+          shares,
+          price,
+        };
+      }
+    }
+  } catch {
+    // State access failed, continue to fallback
+  }
+
+  // Strategy 3: Search recent conversation for market references
+  try {
+    const memories = await runtime.getMemories({
+      roomId: state.roomId as `${string}-${string}-${string}-${string}-${string}`,
+      tableName: 'messages',
+      count: 10,
+    });
+
+    for (const mem of memories) {
+      const memText = mem.content?.text || '';
+      // Look for analysis output markers
+      const marketMatch = memText.match(/Market:\s*(.+)/);
+      const platformMatch = memText.match(/Platform:\s*(Predict\.fun|Opinion)/);
+      const priceMatch = memText.match(/YES Price.*?\$(\d+\.\d+)/);
+
+      if (marketMatch) {
+        const platform: Platform = platformMatch?.[1] === 'Opinion' ? 'opinion' : 'predictfun';
+        const price = priceMatch ? parseFloat(priceMatch[1]) : 0.5;
+
+        return {
+          platform: explicitOpinion ? 'opinion' : explicitPredictFun ? 'predictfun' : platform,
+          marketId: 'from-conversation',
+          marketTitle: marketMatch[1].trim(),
+          outcomeId: outcome.toLowerCase(),
+          outcome,
+          shares,
+          price: outcome === 'YES' ? price : 1 - price,
+        };
+      }
+    }
+  } catch {
+    // Memory search failed
+  }
+
+  // No analysis context found — cannot proceed
+  logger.warn('No prior analysis found for trade execution');
+  return null;
 }

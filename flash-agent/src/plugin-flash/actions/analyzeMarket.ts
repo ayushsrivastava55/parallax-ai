@@ -15,6 +15,9 @@ import { extractMarketUrls } from '../utils/urlParser.ts';
 import { searchMarkets } from '../utils/matching.ts';
 import type { Market, ArbOpportunity, CrossPlatformPrice } from '../types/index.ts';
 
+// Module-level last analysis for cross-action access (belt and suspenders)
+export let lastAnalysis: AnalysisResult | null = null;
+
 interface AnalysisResult {
   market: Market;
   crossPlatformPrices: CrossPlatformPrice[];
@@ -144,7 +147,7 @@ export const analyzeMarketAction: Action = {
       logger.info({ text }, 'ANALYZE_MARKET triggered');
 
       const predictfun = new PredictFunService({ useTestnet: true });
-      const opinionKey = runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY;
+      const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
       const opinion = new OpinionService({
         enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
         apiKey: opinionKey,
@@ -267,30 +270,65 @@ Respond in this exact JSON format:
   "riskScore": 6,
   "confidence": "Medium-High",
   "reasoning": "brief explanation"
-}`;
+}
 
-      let research = {
-        supporting: ['Market shows strong momentum', 'Historical pattern favors YES outcome', 'Sentiment indicators are positive'],
-        contradicting: ['Volatility risk remains elevated', 'External events could shift outcome'],
-        modelProbability: 65,
-        riskScore: 6,
-        confidence: 'Medium',
-        reasoning: 'Based on current market conditions',
+Respond ONLY with the JSON object. No explanation, no markdown.`;
+
+      const currentYesPrice = targetMarket.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes')?.price ?? 0.5;
+      const marketSpecificFallback = {
+        supporting: [
+          `Market "${targetMarket.title}" is currently priced at ${(currentYesPrice * 100).toFixed(0)}% implied probability`,
+          `Listed on ${targetMarket.platform === 'predictfun' ? 'Predict.fun' : 'Opinion'} with ${crossPlatformPrices.length} platform(s) tracked`,
+          targetMarket.liquidity > 0 ? `Liquidity: $${targetMarket.liquidity.toLocaleString()}` : 'Active trading observed',
+        ],
+        contradicting: [
+          'Research model unavailable — baseline analysis only',
+          'Market-implied probability used as estimate',
+        ],
+        modelProbability: Math.round(currentYesPrice * 100),
+        riskScore: 5,
+        confidence: 'Low',
+        reasoning: 'Research model unavailable; using market-implied probability as baseline',
       };
+
+      let research = { ...marketSpecificFallback };
 
       try {
         const researchText = await runtime.useModel(ModelType.TEXT_LARGE, {
           prompt: researchPrompt,
         });
 
-        // Try to parse JSON from the response
-        const jsonMatch = researchText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
+        // Multi-strategy JSON extraction
+        let parsed: any = null;
+
+        // Strategy 1: Direct parse
+        try {
+          parsed = JSON.parse(researchText.trim());
+        } catch {
+          // Strategy 2: Extract from markdown code block
+          const codeBlockMatch = researchText.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (codeBlockMatch) {
+            try {
+              parsed = JSON.parse(codeBlockMatch[1].trim());
+            } catch { /* fall through */ }
+          }
+
+          // Strategy 3: Regex extract first {...}
+          if (!parsed) {
+            const jsonMatch = researchText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch { /* fall through */ }
+            }
+          }
+        }
+
+        if (parsed && parsed.supporting) {
           research = { ...research, ...parsed };
         }
       } catch (err) {
-        logger.warn('Research generation failed, using defaults:', err);
+        logger.warn('Research generation failed, using market-specific fallback:', err);
       }
 
       // Step 5: Statistical evaluation
@@ -337,6 +375,9 @@ Respond in this exact JSON format:
         recommendation,
         arbOpportunities: arbOpps,
       };
+
+      // Store for cross-action access
+      lastAnalysis = analysis;
 
       const formatted = formatAnalysis(analysis);
 

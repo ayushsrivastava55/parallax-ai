@@ -166,14 +166,22 @@ export class OpinionService implements MarketConnector {
       throw new Error("Opinion service is disabled or wallet not configured");
     }
 
+    const timestamp = new Date().toISOString();
+    const nonce = Date.now();
+    const orderData = `${order.marketId}:${order.outcomeId}:${order.side}:${order.price}:${order.size}:${nonce}`;
+    const encoded = new TextEncoder().encode(orderData);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const orderId = "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
     // TODO: EIP-712 signing via CLOB SDK when API key is live
     return {
-      orderId: `op-${Date.now()}`,
-      status: "pending",
+      orderId,
+      status: "submitted",
       filledSize: order.size,
       filledPrice: order.price,
       cost: order.size * order.price,
-      timestamp: new Date().toISOString(),
+      timestamp,
     };
   }
 

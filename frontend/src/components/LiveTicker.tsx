@@ -1,31 +1,93 @@
 import { useEffect, useState } from 'react';
 
-const MARKETS = [
-  { name: 'BTC > $95k Mar 1', price: 0.62, delta: 3.2, src: 'PF' },
-  { name: 'ETH > $4k Mar 5', price: 0.38, delta: -1.8, src: 'OP' },
-  { name: 'Fed Hold Mar', price: 0.91, delta: 0.5, src: 'PF' },
-  { name: 'BNB > $700', price: 0.45, delta: 5.1, src: 'OP' },
-  { name: 'SOL > $200 Mar 10', price: 0.29, delta: -2.4, src: 'PF' },
-  { name: 'XRP ETF 2026', price: 0.34, delta: 4.2, src: 'OP' },
-  { name: 'India Rate Cut', price: 0.55, delta: 0.8, src: 'PF' },
-  { name: 'BTC > $100k Apr', price: 0.21, delta: -0.6, src: 'OP' },
-];
+interface TickerItem {
+  name: string;
+  price: number;
+  delta: number;
+  src: string;
+}
+
+async function fetchRealMarkets(): Promise<TickerItem[]> {
+  const res = await fetch('/pfapi/v1/markets?first=10');
+  if (!res.ok) throw new Error('API error');
+  const data = await res.json();
+  if (!data.success || !data.data?.length) throw new Error('No data');
+
+  const items: TickerItem[] = [];
+  for (const m of data.data) {
+    if (m.tradingStatus !== 'OPEN') continue;
+    const title = (m.question || m.title || '').slice(0, 35);
+
+    let price = 0.5;
+    try {
+      const obRes = await fetch(`/pfapi/v1/markets/${m.id}/orderbook`);
+      if (obRes.ok) {
+        const ob = await obRes.json();
+        if (ob.data) {
+          const bestBid = ob.data.bids?.[0]?.[0] ?? 0;
+          const bestAsk = ob.data.asks?.[0]?.[0] ?? 1;
+          price = (bestBid + bestAsk) / 2;
+        }
+      }
+    } catch {
+      // Use 0.5 default
+    }
+
+    items.push({ name: title, price, delta: 0, src: 'PF' });
+    if (items.length >= 8) break;
+  }
+
+  return items;
+}
 
 export function LiveTicker() {
-  const [items, setItems] = useState(MARKETS);
+  const [items, setItems] = useState<TickerItem[]>([]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setItems(prev =>
-        prev.map(m => ({
-          ...m,
-          price: Math.max(0.01, Math.min(0.99, m.price + (Math.random() - 0.5) * 0.012)),
-          delta: +(m.delta + (Math.random() - 0.5) * 0.3).toFixed(1),
-        }))
-      );
-    }, 2800);
-    return () => clearInterval(interval);
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const real = await fetchRealMarkets();
+        if (!mounted) return;
+
+        // Compute delta from previous fetch
+        setItems(prev => {
+          const oldMap = new Map(prev.map(m => [m.name, m.price]));
+          return real.map(m => {
+            const oldPrice = oldMap.get(m.name);
+            const delta = oldPrice != null && oldPrice > 0
+              ? +((m.price - oldPrice) / oldPrice * 100).toFixed(1)
+              : 0;
+            return { ...m, delta };
+          });
+        });
+      } catch {
+        // No data — show nothing
+      }
+    };
+
+    load();
+    const poll = setInterval(load, 30000);
+    return () => { mounted = false; clearInterval(poll); };
   }, []);
+
+  if (items.length === 0) {
+    return (
+      <div style={{
+        borderTop: '1px solid var(--line)',
+        borderBottom: '1px solid var(--line)',
+        padding: '9px 16px',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        fontFamily: 'var(--mono)',
+        fontSize: 11,
+        color: 'var(--t3)',
+      }}>
+        Loading live markets from Predict.fun...
+      </div>
+    );
+  }
 
   const doubled = [...items, ...items];
 

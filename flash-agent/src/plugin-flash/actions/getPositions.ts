@@ -9,6 +9,7 @@ import type {
 import { logger } from '@elizaos/core';
 import { PredictFunService } from '../services/predictfun.ts';
 import { OpinionService } from '../services/opinion.ts';
+import { getAllPositions } from '../services/positionStore.ts';
 import type { Position } from '../types/index.ts';
 
 function formatPositions(positions: Position[]): string {
@@ -80,10 +81,10 @@ export const getPositionsAction: Action = {
     try {
       logger.info('GET_POSITIONS triggered');
 
-      const walletAddress = runtime.getSetting('BNB_PUBLIC_KEY') || process.env.BNB_PUBLIC_KEY || '';
+      const walletAddress = String(runtime.getSetting('BNB_PUBLIC_KEY') || process.env.BNB_PUBLIC_KEY || '');
 
       const predictfun = new PredictFunService({ useTestnet: true });
-      const opinionKey = runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY;
+      const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
       const opinion = new OpinionService({
         enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
         apiKey: opinionKey,
@@ -97,6 +98,29 @@ export const getPositionsAction: Action = {
       const allPositions: Position[] = [];
       if (pfPositions.status === 'fulfilled') allPositions.push(...pfPositions.value);
       if (opPositions.status === 'fulfilled') allPositions.push(...opPositions.value);
+
+      // Merge in-memory positions from trade execution
+      const memoryPositions = getAllPositions();
+      for (const mp of memoryPositions) {
+        // Avoid duplicates (match by marketId + platform + outcome)
+        const exists = allPositions.some(
+          (p) => p.marketId === mp.marketId && p.platform === mp.platform && p.outcomeLabel === mp.outcomeLabel
+        );
+        if (!exists) {
+          // Try to update current price from live data
+          try {
+            const svc = mp.platform === 'predictfun' ? predictfun : opinion;
+            const prices = await svc.getMarketPrice(mp.marketId);
+            const livePrice = mp.outcomeLabel === 'YES' ? prices.yes : prices.no;
+            mp.currentPrice = livePrice;
+            mp.pnl = (livePrice - mp.avgEntryPrice) * mp.size;
+            mp.pnlPercent = mp.avgEntryPrice > 0 ? ((livePrice - mp.avgEntryPrice) / mp.avgEntryPrice) * 100 : 0;
+          } catch {
+            // Keep entry price as current
+          }
+          allPositions.push(mp);
+        }
+      }
 
       const formatted = formatPositions(allPositions);
 

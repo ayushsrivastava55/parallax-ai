@@ -56,7 +56,7 @@ export interface Order {
 export interface TradeResult {
   orderId: string;
   txHash?: string;
-  status: "filled" | "partial" | "pending" | "rejected";
+  status: "filled" | "partial" | "pending" | "submitted" | "rejected";
   filledSize: number;
   filledPrice: number;
   cost: number; // total USD cost

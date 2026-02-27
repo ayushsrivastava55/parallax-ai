@@ -15,6 +15,11 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
+      '/pfapi': {
+        target: 'https://api-testnet.predict.fun',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/pfapi/, ''),
+      },
     },
   },
 });
