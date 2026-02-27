@@ -41,11 +41,16 @@ contract FlashAgent is ERC721, ERC721URIStorage, Ownable {
     mapping(uint256 => TradeStats) public tradeStats;
     mapping(uint256 => mapping(string => string)) public agentState;
 
+    // ═══ ERC-8004 Bridge ═══
+    address public identityRegistry;
+    uint256 public erc8004AgentId;
+
     // ═══ Events ═══
     event AgentMinted(uint256 indexed tokenId, address indexed owner, string persona);
     event TradeRecorded(uint256 indexed tokenId, uint256 totalTrades, uint256 successCount, bytes32 stateRoot);
     event AgentStateUpdated(uint256 indexed tokenId, string key, string value);
     event AgentFunded(uint256 indexed tokenId, uint256 amount);
+    event IdentityLinked(address indexed registry, uint256 indexed agentId);
 
     constructor() ERC721("Flash Agent NFA", "FLASH") Ownable(msg.sender) {}
 
@@ -56,7 +61,7 @@ contract FlashAgent is ERC721, ERC721URIStorage, Ownable {
      * @param to Address to receive the NFA
      * @param persona Agent's role description
      * @param experience Agent's experience description
-     * @param tokenURI Metadata URI (IPFS or HTTP)
+     * @param uri Metadata URI (IPFS or HTTP)
      */
     function mintAgent(
         address to,
@@ -192,6 +197,19 @@ contract FlashAgent is ERC721, ERC721URIStorage, Ownable {
      */
     function getState(uint256 tokenId, string memory key) external view returns (string memory) {
         return agentState[tokenId][key];
+    }
+
+    // ═══ ERC-8004 Identity Bridge ═══
+
+    /**
+     * @notice Link this NFA contract to an ERC-8004 identity registry agent
+     * @param registry Address of the IdentityRegistry contract
+     * @param agentId The ERC-8004 agent ID assigned to Flash
+     */
+    function linkToIdentityRegistry(address registry, uint256 agentId) external onlyOwner {
+        identityRegistry = registry;
+        erc8004AgentId = agentId;
+        emit IdentityLinked(registry, agentId);
     }
 
     // ═══ Required Overrides ═══

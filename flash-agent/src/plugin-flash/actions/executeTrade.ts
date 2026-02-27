@@ -10,6 +10,7 @@ import { logger } from '@elizaos/core';
 import { PredictFunService } from '../services/predictfun.ts';
 import { OpinionService } from '../services/opinion.ts';
 import { addPosition } from '../services/positionStore.ts';
+import { ERC8004Service, buildERC8004Config } from '../services/erc8004.ts';
 import { lastAnalysis } from './analyzeMarket.ts';
 import type { Order, TradeResult, Platform } from '../types/index.ts';
 
@@ -141,6 +142,22 @@ export const executeTradeAction: Action = {
           entryPrice: result.filledPrice,
           timestamp: result.timestamp,
         });
+      }
+
+      // ERC-8004 reputation feedback (fire-and-forget, only for executed trades)
+      if (result.status === 'filled' || result.status === 'submitted') {
+        try {
+          const erc8004Config = buildERC8004Config(runtime);
+          if (erc8004Config) {
+            const erc8004 = new ERC8004Service(erc8004Config);
+            await erc8004.submitTradeFeedback({
+              success: true,
+              profitPercent: 0, // Not known at execution time
+              marketTitle: tradeIntent.marketTitle,
+              platform: tradeIntent.platform,
+            });
+          }
+        } catch { /* non-critical, fire-and-forget */ }
       }
 
       const resultText = result.status === 'rejected'

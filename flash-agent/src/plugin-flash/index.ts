@@ -9,6 +9,7 @@ import { scanArbitrageAction } from './actions/scanArbitrage.ts';
 import { getPositionsAction } from './actions/getPositions.ts';
 import { executeArbBundleAction } from './actions/executeArbBundle.ts';
 import { manageYieldAction } from './actions/manageYield.ts';
+import { getAgentIdentityAction } from './actions/getAgentIdentity.ts';
 
 // Providers
 import { marketDataProvider } from './providers/marketData.ts';
@@ -20,6 +21,7 @@ import { OpinionService } from './services/opinion.ts';
 import { ArbEngine } from './services/arbEngine.ts';
 import { getBundles } from './services/bundleStore.ts';
 import { YieldRouter } from './services/yieldRouter.ts';
+import { ERC8004Service, buildERC8004Config } from './services/erc8004.ts';
 
 const flashPlugin: Plugin = {
   name: 'flash',
@@ -29,7 +31,21 @@ const flashPlugin: Plugin = {
   async init(_config: Record<string, string>) {
     logger.info('═══ Flash Plugin Initialized ═══');
     logger.info('Platforms: Opinion.trade + Predict.fun (BNB Chain)');
-    logger.info('Actions: ANALYZE_MARKET, GET_MARKETS, EXECUTE_TRADE, SCAN_ARBITRAGE, GET_POSITIONS');
+    logger.info('Actions: ANALYZE_MARKET, GET_MARKETS, EXECUTE_TRADE, SCAN_ARBITRAGE, GET_POSITIONS, GET_AGENT_IDENTITY');
+
+    // ERC-8004 agent identity registration (fire-and-forget)
+    try {
+      const erc8004Config = buildERC8004Config();
+      if (erc8004Config) {
+        const erc8004 = new ERC8004Service(erc8004Config);
+        const agentId = await erc8004.ensureRegistered();
+        logger.info({ agentId }, 'ERC-8004 agent identity confirmed');
+      } else {
+        logger.info('ERC-8004 disabled or not configured — skipping on-chain identity');
+      }
+    } catch (err) {
+      logger.warn({ err }, 'ERC-8004 registration failed (non-critical)');
+    }
   },
 
   actions: [
@@ -40,6 +56,7 @@ const flashPlugin: Plugin = {
     scanArbitrageAction,
     manageYieldAction,
     getPositionsAction,
+    getAgentIdentityAction,
   ],
 
   providers: [
@@ -103,6 +120,44 @@ const flashPlugin: Plugin = {
           data: router.getStatus(),
           timestamp: new Date().toISOString(),
         });
+      },
+    },
+    {
+      type: 'GET',
+      path: '/api/flash/agent-identity',
+      handler: async (_req, res, runtime) => {
+        try {
+          const erc8004Config = buildERC8004Config(runtime);
+          if (!erc8004Config) {
+            res.json({
+              success: false,
+              error: 'ERC-8004 not configured',
+              data: null,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          const service = new ERC8004Service(erc8004Config);
+          const [identity, reputation, flashStats] = await Promise.all([
+            service.getAgentIdentity().catch(() => null),
+            service.getReputationSummary().catch(() => null),
+            service.getFlashAgentStats().catch(() => null),
+          ]);
+
+          res.json({
+            success: true,
+            data: { identity, reputation, flashStats },
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          logger.error({ error }, 'Agent identity route error');
+          res.status(500).json({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            data: null,
+          });
+        }
       },
     },
   ],

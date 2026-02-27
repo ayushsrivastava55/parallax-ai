@@ -255,3 +255,63 @@ export interface UrlInput {
 }
 
 export type AnalysisInput = ThesisInput | UrlInput;
+
+// ═══ ERC-8004 Types ═══
+
+export interface ERC8004Config {
+  rpcUrl: string;
+  privateKey: string;
+  identityRegistryAddress: string;
+  reputationRegistryAddress: string;
+  validationRegistryAddress: string;
+  flashAgentAddress: string;
+  agentId?: number;
+}
+
+export interface AgentIdentity {
+  agentId: number;
+  owner: string;
+  wallet: string;
+  uri: string;
+  metadata: Record<string, string>;
+}
+
+export interface ReputationSummary {
+  agentId: number;
+  totalFeedback: number;
+  averageScore: number;
+  clients: string[];
+}
+
+export interface FeedbackEntry {
+  client: string;
+  value: number;
+  tag1: string;
+  tag2: string;
+  isRevoked: boolean;
+  timestamp: number;
+}
+
+export interface ValidationSummary {
+  agentId: number;
+  totalValidations: number;
+  averageResponse: number;
+  validations: ValidationEntry[];
+}
+
+export interface ValidationEntry {
+  requestHash: string;
+  validator: string;
+  response: number;
+  tag: string;
+  lastUpdate: number;
+}
+
+export interface FlashAgentStats {
+  totalTrades: number;
+  successfulTrades: number;
+  totalVolume: string;
+  successRate: number;
+  stateRoot: string;
+  isActive: boolean;
+}
