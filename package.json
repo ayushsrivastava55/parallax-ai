@@ -1,0 +1,19 @@
+{
+  "name": "project-flash",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI agent for BNB Chain prediction markets — cross-platform analysis + arbitrage",
+  "workspaces": [
+    "agent",
+    "plugin-flash",
+    "contracts"
+  ],
+  "scripts": {
+    "dev": "cd agent && bun run dev",
+    "build": "bun run --filter '*' build",
+    "test": "bun test"
+  },
+  "engines": {
+    "node": ">=23.3"
+  }
+}

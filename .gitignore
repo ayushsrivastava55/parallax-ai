@@ -1,0 +1,9 @@
+node_modules/
+.env
+dist/
+.turbo/
+artifacts/
+cache/
+typechain-types/
+*.log
+.DS_Store
