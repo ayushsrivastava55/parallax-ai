@@ -10,4 +10,31 @@ typechain-types/
 .eliza/
 .elizadb
 bun.lock
+
+# AI tooling metadata/workspaces
+**/.agent/
+**/.agents/
+**/.claude/
+**/.codebuddy/
+**/.commandcode/
+**/.continue/
+**/.crush/
+**/.factory/
+**/.goose/
+**/.junie/
+**/.kilocode/
+**/.kiro/
+**/.kode/
+**/.mcpjam/
+**/.mux/
+**/.neovate/
+**/.openhands/
+**/.pi/
+**/.pochi/
+**/.qoder/
+**/.qwen/
+**/.roo/
+**/.trae/
+**/.windsurf/
+**/.zencoder/
  

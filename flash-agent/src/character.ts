@@ -1,11 +1,28 @@
 import { type Character } from '@elizaos/core';
 
+// MiniMax provides an OpenAI-compatible API. Mirror MiniMax envs into OpenAI envs when needed.
+const minimaxApiKey = process.env.MINIMAX_API_KEY?.trim();
+if (!process.env.OPENAI_API_KEY?.trim() && minimaxApiKey) {
+  process.env.OPENAI_API_KEY = minimaxApiKey;
+}
+if (!process.env.OPENAI_BASE_URL?.trim() && minimaxApiKey) {
+  process.env.OPENAI_BASE_URL = process.env.MINIMAX_BASE_URL?.trim() || 'https://api.minimax.io/v1';
+}
+if (!process.env.OPENAI_SMALL_MODEL?.trim() && process.env.MINIMAX_SMALL_MODEL?.trim()) {
+  process.env.OPENAI_SMALL_MODEL = process.env.MINIMAX_SMALL_MODEL.trim();
+}
+if (!process.env.OPENAI_LARGE_MODEL?.trim() && process.env.MINIMAX_LARGE_MODEL?.trim()) {
+  process.env.OPENAI_LARGE_MODEL = process.env.MINIMAX_LARGE_MODEL.trim();
+}
+
+const hasOpenAICompatibleKey = Boolean(process.env.OPENAI_API_KEY?.trim() || minimaxApiKey);
+
 export const character: Character = {
   name: 'Flash',
   plugins: [
     '@elizaos/plugin-sql',
     ...(process.env.ANTHROPIC_API_KEY?.trim() ? ['@elizaos/plugin-anthropic'] : []),
-    ...(process.env.OPENAI_API_KEY?.trim() ? ['@elizaos/plugin-openai'] : []),
+    ...(hasOpenAICompatibleKey ? ['@elizaos/plugin-openai'] : []),
     ...(process.env.TELEGRAM_BOT_TOKEN?.trim() ? ['@elizaos/plugin-telegram'] : []),
     ...(!process.env.IGNORE_BOOTSTRAP ? ['@elizaos/plugin-bootstrap'] : []),
   ],

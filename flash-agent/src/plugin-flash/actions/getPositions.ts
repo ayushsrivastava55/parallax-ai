@@ -9,7 +9,7 @@ import type {
 import { logger } from '@elizaos/core';
 import { PredictFunService } from '../services/predictfun.ts';
 import { OpinionService } from '../services/opinion.ts';
-import { getAllPositions } from '../services/positionStore.ts';
+import { getLedgerPositions, refreshLivePrices } from '../services/positionLedger.ts';
 import type { Position } from '../types/index.ts';
 
 function formatPositions(positions: Position[]): string {
@@ -41,6 +41,43 @@ function formatPositions(positions: Position[]): string {
   out += `Total P&L: ${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}\n`;
 
   return out;
+}
+
+function mergePositions(a: Position[], b: Position[]): Position[] {
+  const map = new Map<string, Position>();
+
+  for (const position of [...a, ...b]) {
+    const key = `${position.platform}|${position.marketId}|${position.outcomeLabel.toUpperCase()}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...position });
+      continue;
+    }
+
+    const combinedSize = existing.size + position.size;
+    const weightedEntry =
+      combinedSize > 0
+        ? ((existing.avgEntryPrice * existing.size) + (position.avgEntryPrice * position.size)) / combinedSize
+        : existing.avgEntryPrice;
+    const weightedCurrent =
+      combinedSize > 0
+        ? ((existing.currentPrice * existing.size) + (position.currentPrice * position.size)) / combinedSize
+        : existing.currentPrice;
+    const pnl = (weightedCurrent - weightedEntry) * combinedSize;
+    const pnlPercent = weightedEntry > 0 ? ((weightedCurrent - weightedEntry) / weightedEntry) * 100 : 0;
+
+    map.set(key, {
+      ...existing,
+      marketTitle: existing.marketTitle || position.marketTitle,
+      size: combinedSize,
+      avgEntryPrice: weightedEntry,
+      currentPrice: weightedCurrent,
+      pnl,
+      pnlPercent,
+    });
+  }
+
+  return Array.from(map.values());
 }
 
 export const getPositionsAction: Action = {
@@ -82,47 +119,31 @@ export const getPositionsAction: Action = {
       logger.info('GET_POSITIONS triggered');
 
       const walletAddress = String(runtime.getSetting('BNB_PUBLIC_KEY') || process.env.BNB_PUBLIC_KEY || '');
-
-      const predictfun = new PredictFunService({ useTestnet: true });
       const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
+      const predictfun = new PredictFunService({ useTestnet: true });
       const opinion = new OpinionService({
         enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
         apiKey: opinionKey,
       });
 
-      const [pfPositions, opPositions] = await Promise.allSettled([
-        predictfun.getPositions(walletAddress),
-        opinion.getPositions(walletAddress),
-      ]);
+      const ledgerPositions = await getLedgerPositions();
+      const liveLedgerPositions = await refreshLivePrices(ledgerPositions, { predictfun, opinion });
 
-      const allPositions: Position[] = [];
-      if (pfPositions.status === 'fulfilled') allPositions.push(...pfPositions.value);
-      if (opPositions.status === 'fulfilled') allPositions.push(...opPositions.value);
-
-      // Merge in-memory positions from trade execution
-      const memoryPositions = getAllPositions();
-      for (const mp of memoryPositions) {
-        // Avoid duplicates (match by marketId + platform + outcome)
-        const exists = allPositions.some(
-          (p) => p.marketId === mp.marketId && p.platform === mp.platform && p.outcomeLabel === mp.outcomeLabel
-        );
-        if (!exists) {
-          // Try to update current price from live data
-          try {
-            const svc = mp.platform === 'predictfun' ? predictfun : opinion;
-            const prices = await svc.getMarketPrice(mp.marketId);
-            const livePrice = mp.outcomeLabel === 'YES' ? prices.yes : prices.no;
-            mp.currentPrice = livePrice;
-            mp.pnl = (livePrice - mp.avgEntryPrice) * mp.size;
-            mp.pnlPercent = mp.avgEntryPrice > 0 ? ((livePrice - mp.avgEntryPrice) / mp.avgEntryPrice) * 100 : 0;
-          } catch {
-            // Keep entry price as current
-          }
-          allPositions.push(mp);
+      const diagnostics: string[] = [];
+      let opinionPositions: Position[] = [];
+      if (walletAddress && opinion.isConfigured) {
+        try {
+          opinionPositions = await opinion.getPositions(walletAddress);
+        } catch (error) {
+          diagnostics.push(`Opinion positions unavailable: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
 
-      const formatted = formatPositions(allPositions);
+      const allPositions = mergePositions(liveLedgerPositions, opinionPositions);
+
+      const formatted = diagnostics.length > 0
+        ? `${formatPositions(allPositions)}\n\nDiagnostics:\n${diagnostics.map((d) => `- ${d}`).join('\n')}`
+        : formatPositions(allPositions);
 
       await callback({
         text: formatted,

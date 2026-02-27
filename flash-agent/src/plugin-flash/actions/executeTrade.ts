@@ -9,7 +9,7 @@ import type {
 import { logger } from '@elizaos/core';
 import { PredictFunService } from '../services/predictfun.ts';
 import { OpinionService } from '../services/opinion.ts';
-import { addPosition } from '../services/positionStore.ts';
+import { recordTradeResult } from '../services/positionLedger.ts';
 import { ERC8004Service, buildERC8004Config } from '../services/erc8004.ts';
 import { lastAnalysis } from './analyzeMarket.ts';
 import type { Order, TradeResult, Platform } from '../types/index.ts';
@@ -121,6 +121,11 @@ export const executeTradeAction: Action = {
         });
         result = await pf.placeOrder(order);
       } else {
+        const opinionExecutionEnabled =
+          String(runtime.getSetting('OPINION_EXECUTION_ENABLED') || process.env.OPINION_EXECUTION_ENABLED || 'false') === 'true';
+        if (!opinionExecutionEnabled) {
+          throw new Error('Opinion execution is disabled (read-only connector until CLOB integration is enabled).');
+        }
         const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');
         const op = new OpinionService({
           enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
@@ -130,17 +135,14 @@ export const executeTradeAction: Action = {
         result = await op.placeOrder(order);
       }
 
-      // Track position in memory
-      if (result.status !== 'rejected') {
-        addPosition({
-          orderId: result.orderId,
-          marketId: tradeIntent.marketId,
-          platform: tradeIntent.platform,
+      // Persist only actual filled quantity to the durable ledger
+      if (result.filledSize > 0) {
+        await recordTradeResult({
+          order,
+          trade: result,
           marketTitle: tradeIntent.marketTitle,
           outcomeLabel: tradeIntent.outcome,
-          size: result.filledSize,
-          entryPrice: result.filledPrice,
-          timestamp: result.timestamp,
+          source: 'agent_action',
         });
       }
 
@@ -169,7 +171,7 @@ export const executeTradeAction: Action = {
           `  Cost: $${result.cost.toFixed(2)}\n` +
           `  Potential Payout: $${result.filledSize.toFixed(2)}\n` +
           (result.txHash ? `  TX: ${result.txHash}\n` : '') +
-          `\n  Position tracked. Use "show my positions" to view portfolio.`;
+          `\n  Fills recorded in ledger. Use "show my positions" to view portfolio.`;
 
       await callback({
         text: resultText,
@@ -253,6 +255,8 @@ async function parseTradeIntent(
 
   const explicitPredictFun = lowerText.includes('predict');
   const explicitOpinion = lowerText.includes('opinion');
+  const opinionExecutionEnabled =
+    String(runtime.getSetting('OPINION_EXECUTION_ENABLED') || process.env.OPINION_EXECUTION_ENABLED || 'false') === 'true';
 
   // Strategy 1: Use lastAnalysis (module-level, always available)
   if (lastAnalysis) {
@@ -281,11 +285,15 @@ async function parseTradeIntent(
         )[0]
       : null;
 
+    const suggestedPlatform = bestCross?.platform ?? market.platform;
+    const defaultPlatform = suggestedPlatform === 'opinion' && !opinionExecutionEnabled
+      ? 'predictfun'
+      : suggestedPlatform;
     const platform: Platform = explicitOpinion
       ? 'opinion'
       : explicitPredictFun
       ? 'predictfun'
-      : bestCross?.platform ?? market.platform;
+      : defaultPlatform;
 
     const yesOutcome = market.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes');
     const noOutcome = market.outcomes.find((o) => o.label === 'NO' || o.label === 'No');
@@ -350,18 +358,19 @@ async function parseTradeIntent(
 
     for (const mem of memories) {
       const memText = mem.content?.text || '';
-      // Look for analysis output markers
+      // Look for analysis output markers with a concrete market ID
+      const marketIdMatch = memText.match(/Market ID:\s*([A-Za-z0-9_-]+)/i);
       const marketMatch = memText.match(/Market:\s*(.+)/);
       const platformMatch = memText.match(/Platform:\s*(Predict\.fun|Opinion)/);
       const priceMatch = memText.match(/YES Price.*?\$(\d+\.\d+)/);
 
-      if (marketMatch) {
+      if (marketMatch && marketIdMatch) {
         const platform: Platform = platformMatch?.[1] === 'Opinion' ? 'opinion' : 'predictfun';
         const price = priceMatch ? parseFloat(priceMatch[1]) : 0.5;
 
         return {
           platform: explicitOpinion ? 'opinion' : explicitPredictFun ? 'predictfun' : platform,
-          marketId: 'from-conversation',
+          marketId: marketIdMatch[1].trim(),
           marketTitle: marketMatch[1].trim(),
           outcomeId: outcome.toLowerCase(),
           outcome,

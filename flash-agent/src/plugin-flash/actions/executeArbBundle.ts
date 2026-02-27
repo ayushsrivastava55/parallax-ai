@@ -12,6 +12,7 @@ import { OpinionService } from "../services/opinion.ts";
 import { ArbEngine } from "../services/arbEngine.ts";
 import { DeltaNeutralEngine } from "../services/deltaNeutralEngine.ts";
 import { saveBundle } from "../services/bundleStore.ts";
+import { recordTradeResult } from "../services/positionLedger.ts";
 import type { Order, TradeResult, ExecutionBundle, ExecutionLeg } from "../types/index.ts";
 
 function parseCapital(text: string): number {
@@ -148,6 +149,40 @@ export const executeArbBundleAction: Action = {
 
       const resultB = await executeLeg(legB, runtime);
       if (resultB.status !== "rejected") {
+        if (resultA.filledSize > 0) {
+          await recordTradeResult({
+            order: {
+              marketId: legA.marketId,
+              platform: legA.platform,
+              outcomeId: legA.outcomeId,
+              side: legA.side,
+              price: legA.price,
+              size: legA.shares,
+              type: "limit",
+            },
+            trade: resultA,
+            marketTitle: bundle.marketTitle,
+            outcomeLabel: legA.outcome,
+            source: "agent_action",
+          });
+        }
+        if (resultB.filledSize > 0) {
+          await recordTradeResult({
+            order: {
+              marketId: legB.marketId,
+              platform: legB.platform,
+              outcomeId: legB.outcomeId,
+              side: legB.side,
+              price: legB.price,
+              size: legB.shares,
+              type: "limit",
+            },
+            trade: resultB,
+            marketTitle: bundle.marketTitle,
+            outcomeLabel: legB.outcome,
+            source: "agent_action",
+          });
+        }
         bundle.status = "success";
         bundle.updatedAt = new Date().toISOString();
         saveBundle(bundle);

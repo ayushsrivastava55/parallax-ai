@@ -162,7 +162,13 @@ export class PredictFunService implements MarketConnector {
     try {
       const response = await this.fetch<{
         success: boolean;
-        data?: { orderId?: string; status?: string };
+        data?: {
+          orderId?: string;
+          status?: string;
+          filledSize?: number | string;
+          avgFillPrice?: number | string;
+          cost?: number | string;
+        };
         error?: string;
       }>("/v1/orders", {
         method: "POST",
@@ -192,12 +198,24 @@ export class PredictFunService implements MarketConnector {
             : remoteStatus === "rejected"
             ? "rejected"
             : "submitted";
+
+        const parsedFilledSize = Number(response.data.filledSize ?? 0);
+        const parsedFillPrice = Number(response.data.avgFillPrice ?? order.price);
+        const parsedCost = Number(response.data.cost ?? 0);
+        const filledSize = Number.isFinite(parsedFilledSize) && parsedFilledSize > 0
+          ? parsedFilledSize
+          : status === "filled"
+          ? order.size
+          : 0;
+        const filledPrice = Number.isFinite(parsedFillPrice) && parsedFillPrice > 0 ? parsedFillPrice : order.price;
+        const cost = Number.isFinite(parsedCost) && parsedCost > 0 ? parsedCost : filledSize * filledPrice;
+
         return {
           orderId: response.data.orderId || orderId,
           status,
-          filledSize: order.size,
-          filledPrice: order.price,
-          cost: order.size * order.price,
+          filledSize,
+          filledPrice,
+          cost,
           timestamp,
           txHash: signature,
         };
@@ -213,8 +231,9 @@ export class PredictFunService implements MarketConnector {
   }
 
   async getPositions(_walletAddress: string): Promise<Position[]> {
-    // Testnet doesn't have a straightforward positions endpoint without auth
-    return [];
+    throw new Error(
+      "Predict.fun live positions API is unavailable for this connector; use Flash trade ledger positions."
+    );
   }
 
   private mapMarket(m: PFMarket): Market {

@@ -1,0 +1,38 @@
+{
+  "name": "flash-gateway",
+  "version": "1.1.0",
+  "description": "Main routing skill for Flash Gateway with specialized sub-skills",
+  "homepage": "https://YOUR_WEBSITE_DOMAIN",
+  "api_base": "https://YOUR_WEBSITE_DOMAIN/api/v1",
+  "category": "trading",
+  "files": {
+    "skill": "/skill.md",
+    "market_intel": "/skill-market-intel.md",
+    "trading": "/skill-trading.md",
+    "portfolio": "/skill-portfolio.md",
+    "identity": "/skill-identity.md",
+    "heartbeat": "/heartbeat.md",
+    "messaging": "/messaging.md",
+    "rules": "/rules.md"
+  },
+  "routing": {
+    "markets_or_analysis": "/skill-market-intel.md",
+    "execution": "/skill-trading.md",
+    "positions_or_yield": "/skill-portfolio.md",
+    "identity_or_reputation": "/skill-identity.md"
+  },
+  "auth": {
+    "scheme": "hmac-sha256",
+    "headers": [
+      "X-Flash-Agent-Id",
+      "X-Flash-Key-Id",
+      "X-Flash-Timestamp",
+      "X-Flash-Nonce",
+      "X-Flash-Signature"
+    ]
+  },
+  "execution": {
+    "requires_confirmation_token": true,
+    "requires_idempotency_key": true
+  }
+}

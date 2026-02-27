@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: Flash Gateway API
+  version: 1.0.0
+  description: Unified execution gateway for prediction market agents. External agents integrate only with Flash APIs.
+servers:
+  - url: https://api.flash.example.com
+    description: Production
+  - url: http://localhost:3001
+    description: Local
+tags:
+  - name: System
+  - name: Markets
+  - name: Trading
+  - name: Portfolio
+  - name: Arbitrage
+  - name: Yield
+  - name: Identity
+components:
+  securitySchemes:
+    FlashHmac:
+      type: apiKey
+      in: header
+      name: X-Flash-Key-Id
+  schemas:
+    EnvelopeSuccess:
+      type: object
+      required: [success, requestId, data, error, timestamp]
+      properties:
+        success:
+          type: boolean
+          const: true
+        requestId:
+          type: string
+        data:
+          type: object
+        error:
+          type: 'null'
+        timestamp:
+          type: string
+          format: date-time
+    EnvelopeError:
+      type: object
+      required: [success, requestId, data, error, timestamp]
+      properties:
+        success:
+          type: boolean
+          const: false
+        requestId:
+          type: string
+        data:
+          type: 'null'
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+        timestamp:
+          type: string
+          format: date-time
+paths:
+  /v1/system/health:
+    get:
+      tags: [System]
+      summary: Gateway health check
+      responses:
+        '200':
+          description: Healthy
+  /v1/system/connectors:
+    get:
+      tags: [System]
+      summary: Connector status
+      security: [{ FlashHmac: [] }]
+      responses:
+        '200': { description: Connector status }
+        '401': { description: Unauthorized }
+  /v1/markets/list:
+    post:
+      tags: [Markets]
+      summary: List markets from unified connectors
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                platforms:
+                  type: array
+                  items: { type: string, enum: [predictfun, opinion] }
+                status:
+                  type: string
+                  enum: [active, all]
+                  default: active
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+      responses:
+        '200': { description: Markets listed }
+        '400': { description: Validation error }
+        '401': { description: Unauthorized }
+  /v1/markets/analyze:
+    post:
+      tags: [Markets]
+      summary: Analyze a market thesis with Flash intelligence
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query: { type: string }
+                marketId: { type: string }
+                platform:
+                  type: string
+                  enum: [predictfun, opinion]
+      responses:
+        '200': { description: Analysis complete }
+        '422': { description: Analysis failed }
+  /v1/trades/quote:
+    post:
+      tags: [Trading]
+      summary: Create trade quote and confirmation token
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [marketId, platform, side, size, sizeType]
+              properties:
+                marketId: { type: string }
+                platform: { type: string, enum: [predictfun, opinion] }
+                side: { type: string, enum: [YES, NO] }
+                size: { type: number, minimum: 0 }
+                sizeType: { type: string, enum: [shares, usd] }
+                maxSlippageBps: { type: integer, minimum: 0, maximum: 5000, default: 100 }
+      responses:
+        '200': { description: Quote generated }
+        '403': { description: Policy denied }
+  /v1/trades/execute:
+    post:
+      tags: [Trading]
+      summary: Execute trade from confirmation token
+      security: [{ FlashHmac: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirmationToken, clientOrderId]
+              properties:
+                confirmationToken: { type: string }
+                clientOrderId: { type: string }
+      responses:
+        '200': { description: Trade result }
+        '409': { description: Token invalid/used/expired }
+  /v1/positions/list:
+    post:
+      tags: [Portfolio]
+      summary: List positions and totals
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wallet: { type: string }
+                includeVirtual: { type: boolean, default: true }
+      responses:
+        '200': { description: Positions returned }
+  /v1/arb/scan:
+    post:
+      tags: [Arbitrage]
+      summary: Scan arbitrage opportunities
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxCapitalUsd: { type: number }
+                platforms:
+                  type: array
+                  items: { type: string, enum: [predictfun, opinion] }
+      responses:
+        '200': { description: Opportunities returned }
+  /v1/yield/manage:
+    post:
+      tags: [Yield]
+      summary: Yield status/deploy/recall decisioning
+      security: [{ FlashHmac: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [status, deploy, recall]
+                amountUsd: { type: number }
+                idleUsd: { type: number }
+                openTradeDemandUsd: { type: number }
+      responses:
+        '200': { description: Yield decision returned }
+  /v1/agent/identity:
+    get:
+      tags: [Identity]
+      summary: ERC-8004 identity and reputation summary
+      security: [{ FlashHmac: [] }]
+      responses:
+        '200': { description: Identity returned }
+security:
+  - FlashHmac: []

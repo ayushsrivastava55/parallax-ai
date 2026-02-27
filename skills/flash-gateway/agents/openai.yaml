@@ -1,0 +1,3 @@
+display_name: Flash Gateway
+short_description: Route prediction market intelligence and execution through Flash APIs.
+default_prompt: Use Flash Gateway endpoints only for markets, analysis, quoting, execution, positions, arbitrage, yield, and on-chain identity.
