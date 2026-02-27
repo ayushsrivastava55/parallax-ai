@@ -107,8 +107,10 @@ export const executeTradeAction: Action = {
         const pf = new PredictFunService({ useTestnet: true });
         result = await pf.placeOrder(order);
       } else {
+        const opinionKey = runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY;
         const op = new OpinionService({
-          apiKey: runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY,
+          enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
+          apiKey: opinionKey,
           privateKey: runtime.getSetting('BNB_PRIVATE_KEY') || process.env.BNB_PRIVATE_KEY,
         });
         result = await op.placeOrder(order);

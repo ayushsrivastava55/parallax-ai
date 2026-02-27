@@ -69,18 +69,31 @@ export const getMarketsAction: Action = {
     _responses: Memory[]
   ): Promise<ActionResult> => {
     try {
-      logger.info('Fetching markets from all platforms...');
+      logger.info('GET_MARKETS handler starting...');
 
       const predictfun = new PredictFunService({ useTestnet: true });
+      const opinionKey = runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY;
       const opinion = new OpinionService({
-        apiKey: runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY,
+        enabled: (process.env.OPINION_ENABLED === 'true') && !!opinionKey,
+        apiKey: opinionKey,
       });
 
-      // Fetch from both platforms in parallel
-      const [pfMarkets, opMarkets] = await Promise.allSettled([
-        predictfun.getMarkets({ status: 'active' }),
-        opinion.getMarkets({ status: 'active' }),
+      // Fetch from both platforms in parallel with 8s overall timeout
+      const fetchWithTimeout = Promise.race([
+        Promise.allSettled([
+          predictfun.getMarkets({ status: 'active' }),
+          opinion.getMarkets({ status: 'active' }),
+        ]),
+        new Promise<[PromiseSettledResult<Market[]>, PromiseSettledResult<Market[]>]>((resolve) =>
+          setTimeout(() => resolve([
+            { status: 'rejected', reason: new Error('timeout') } as PromiseRejectedResult,
+            { status: 'rejected', reason: new Error('timeout') } as PromiseRejectedResult,
+          ]), 8000)
+        ),
       ]);
+
+      const [pfMarkets, opMarkets] = await fetchWithTimeout;
+      logger.info('GET_MARKETS: markets fetched');
 
       const allMarkets: Market[] = [];
 
@@ -96,19 +109,24 @@ export const getMarketsAction: Action = {
         logger.warn('Failed to fetch Opinion markets:', opMarkets.reason);
       }
 
-      // Try to enrich with orderbook prices for top markets
-      for (const market of allMarkets.slice(0, 10)) {
+      // Enrich top 3 markets with orderbook prices in parallel (2s timeout)
+      const enrichPromises = allMarkets.slice(0, 3).map(async (market) => {
         try {
           const svc = market.platform === 'predictfun' ? predictfun : opinion;
-          const prices = await svc.getMarketPrice(market.id);
+          const prices = await Promise.race([
+            svc.getMarketPrice(market.id),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+          ]);
           const yes = market.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes');
           const no = market.outcomes.find((o) => o.label === 'NO' || o.label === 'No');
           if (yes) yes.price = prices.yes;
           if (no) no.price = prices.no;
         } catch {
-          // Skip price enrichment on error
+          // Skip price enrichment on error/timeout
         }
-      }
+      });
+      await Promise.allSettled(enrichPromises);
+      logger.info('GET_MARKETS: prices enriched');
 
       const table = formatMarketTable(allMarkets);
 
@@ -118,7 +136,9 @@ export const getMarketsAction: Action = {
         source: message.content.source,
       };
 
+      logger.info('GET_MARKETS: sending callback with table...');
       await callback(responseContent);
+      logger.info('GET_MARKETS: callback sent, returning result');
 
       return {
         text: `Found ${allMarkets.length} markets across platforms`,

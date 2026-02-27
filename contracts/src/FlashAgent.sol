@@ -62,11 +62,11 @@ contract FlashAgent is ERC721, ERC721URIStorage, Ownable {
         address to,
         string memory persona,
         string memory experience,
-        string memory tokenURI
+        string memory uri
     ) external onlyOwner returns (uint256) {
         uint256 tokenId = _nextTokenId++;
         _safeMint(to, tokenId);
-        _setTokenURI(tokenId, tokenURI);
+        _setTokenURI(tokenId, uri);
 
         string[] memory caps = new string[](5);
         caps[0] = "ANALYZE_MARKET";

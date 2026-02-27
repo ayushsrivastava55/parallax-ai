@@ -17,28 +17,32 @@ interface PredictFunConfig {
 }
 
 interface PFMarket {
-  id: string;
+  id: number;
   title: string;
   question: string;
   description: string;
-  status: string;
+  status: string;         // "REGISTERED" | "RESOLVED"
+  tradingStatus: string;  // "OPEN" | "CLOSED"
   isNegRisk: boolean;
   feeRateBps: number;
   outcomes: Array<{
-    name: string;
+    name: string;        // "Yes" | "No"
     indexSet: number;
     onChainId: string;
-    status: string;
+    status: string | null;
   }>;
   categorySlug: string;
   createdAt: string;
   conditionId: string;
   resolverAddress: string;
+  imageUrl?: string;
 }
 
-interface PFOrderbookResponse {
-  bids: [number, number][];
+interface PFOrderbookData {
+  marketId: number;
+  bids: [number, number][];  // [price, size]
   asks: [number, number][];
+  updateTimestampMs: number;
 }
 
 export class PredictFunService implements MarketConnector {
@@ -67,8 +71,7 @@ export class PredictFunService implements MarketConnector {
       throw new Error(`PredictFun API error ${res.status}: ${text}`);
     }
 
-    const json = await res.json();
-    return json as T;
+    return (await res.json()) as T;
   }
 
   async getMarkets(params?: {
@@ -88,25 +91,21 @@ export class PredictFunService implements MarketConnector {
 
     return response.data
       .filter((m) => {
-        if (params?.status === "active") return m.status === "ACTIVE";
+        if (params?.status === "active") return m.tradingStatus === "OPEN";
         return true;
       })
       .map((m) => this.mapMarket(m));
   }
 
   async getOrderbook(marketId: string): Promise<Orderbook> {
-    const response = await this.fetch<PFOrderbookResponse>(
-      `/v1/markets/${marketId}/orderbook`
-    );
+    const response = await this.fetch<{
+      success: boolean;
+      data: PFOrderbookData;
+    }>(`/v1/markets/${marketId}/orderbook`);
 
-    const bids = (response.bids || []).map(([price, size]) => ({
-      price,
-      size,
-    }));
-    const asks = (response.asks || []).map(([price, size]) => ({
-      price,
-      size,
-    }));
+    const data = response.data;
+    const bids = (data.bids || []).map(([price, size]) => ({ price, size }));
+    const asks = (data.asks || []).map(([price, size]) => ({ price, size }));
 
     const bestBid = bids[0]?.price ?? 0;
     const bestAsk = asks[0]?.price ?? 1;
@@ -130,9 +129,7 @@ export class PredictFunService implements MarketConnector {
   }
 
   async placeOrder(order: Order): Promise<TradeResult> {
-    // For demo/testnet — construct and submit signed order
-    // In production, this would use the SDK's OrderBuilder for EIP-712 signing
-    // For now, return a mock result for demo purposes
+    // TODO: EIP-712 signing via SDK OrderBuilder for real execution
     return {
       orderId: `pf-${Date.now()}`,
       status: "pending",
@@ -144,82 +141,31 @@ export class PredictFunService implements MarketConnector {
   }
 
   async getPositions(_walletAddress: string): Promise<Position[]> {
-    // Testnet positions endpoint
-    try {
-      const response = await this.fetch<{
-        success: boolean;
-        data: Array<{
-          marketId: string;
-          marketTitle: string;
-          outcomeName: string;
-          size: string;
-          avgPrice: string;
-          currentPrice: string;
-        }>;
-      }>("/v1/positions");
-
-      if (!response.success || !response.data) return [];
-
-      return response.data.map((p) => {
-        const size = parseFloat(p.size);
-        const avgEntry = parseFloat(p.avgPrice);
-        const current = parseFloat(p.currentPrice);
-        return {
-          marketId: p.marketId,
-          platform: "predictfun" as const,
-          marketTitle: p.marketTitle,
-          outcomeLabel: p.outcomeName,
-          size,
-          avgEntryPrice: avgEntry,
-          currentPrice: current,
-          pnl: (current - avgEntry) * size,
-          pnlPercent: avgEntry > 0 ? ((current - avgEntry) / avgEntry) * 100 : 0,
-          resolutionDate: "",
-        };
-      });
-    } catch {
-      return [];
-    }
-  }
-
-  async getMarketStatistics(
-    marketId: string
-  ): Promise<{ volume: number; liquidity: number }> {
-    try {
-      const response = await this.fetch<{
-        success: boolean;
-        data: { volume: string; liquidity: string };
-      }>(`/v1/markets/${marketId}/statistics`);
-      return {
-        volume: parseFloat(response.data?.volume ?? "0"),
-        liquidity: parseFloat(response.data?.liquidity ?? "0"),
-      };
-    } catch {
-      return { volume: 0, liquidity: 0 };
-    }
+    // Testnet doesn't have a straightforward positions endpoint without auth
+    return [];
   }
 
   private mapMarket(m: PFMarket): Market {
     const outcomes = m.outcomes.map((o) => ({
       id: o.onChainId,
       label: o.name,
-      price: 0, // Will be populated from orderbook
+      price: 0,
       bestBid: 0,
       bestAsk: 0,
     }));
 
     return {
-      id: m.id,
+      id: String(m.id),
       platform: "predictfun",
-      slug: m.id,
-      title: m.title || m.question,
+      slug: String(m.id),
+      title: m.question || m.title,
       description: m.description || m.question,
       outcomes,
-      resolutionDate: "", // Not directly in market response
+      resolutionDate: "",
       category: m.categorySlug || "general",
       liquidity: 0,
       volume24h: 0,
-      status: m.status === "ACTIVE" ? "active" : "paused",
+      status: m.tradingStatus === "OPEN" ? "active" : "paused",
       url: `https://predict.fun/event/${m.id}`,
       canonicalHash: canonicalHash(m.question || m.title, ""),
     };

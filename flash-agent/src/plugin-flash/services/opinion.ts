@@ -9,13 +9,12 @@ import type {
 import { canonicalHash } from "../utils/matching.js";
 
 const OPEN_API_BASE = "https://openapi.opinion.trade/openapi";
-const CLOB_HOST = "https://proxy.opinion.trade:8443";
 
 interface OpinionConfig {
+  enabled?: boolean;
   apiKey?: string;
   privateKey?: string;
   multiSigAddr?: string;
-  rpcUrl?: string;
 }
 
 interface OpinionMarketResponse {
@@ -55,29 +54,33 @@ interface OpinionOrderbookResponse {
 
 export class OpinionService implements MarketConnector {
   platform = "opinion" as const;
+  private enabled: boolean;
   private apiKey?: string;
   private privateKey?: string;
   private multiSigAddr?: string;
 
   constructor(config: OpinionConfig = {}) {
+    this.enabled = config.enabled ?? false;
     this.apiKey = config.apiKey;
     this.privateKey = config.privateKey;
     this.multiSigAddr = config.multiSigAddr;
   }
 
   get isConfigured(): boolean {
-    return !!this.apiKey;
+    return this.enabled && !!this.apiKey;
   }
 
   private async fetchOpenApi<T>(path: string): Promise<T> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (this.apiKey) {
-      headers["apikey"] = this.apiKey;
+    if (!this.isConfigured) {
+      throw new Error("Opinion service is disabled or missing API key");
     }
 
-    const res = await fetch(`${OPEN_API_BASE}${path}`, { headers });
+    const res = await fetch(`${OPEN_API_BASE}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        apikey: this.apiKey!,
+      },
+    });
 
     if (!res.ok) {
       const text = await res.text();
@@ -91,102 +94,79 @@ export class OpinionService implements MarketConnector {
     category?: string;
     status?: string;
   }): Promise<Market[]> {
-    if (!this.apiKey) {
-      return this.getMockMarkets();
-    }
+    if (!this.isConfigured) return [];
 
-    try {
-      const response = await this.fetchOpenApi<OpinionMarketResponse>(
-        "/market?page=1&limit=20"
-      );
+    const response = await this.fetchOpenApi<OpinionMarketResponse>(
+      "/market?page=1&limit=20"
+    );
 
-      if (response.code !== 0 || !response.result?.list) return [];
+    if (response.code !== 0 || !response.result?.list) return [];
 
-      return response.result.list
-        .filter((m) => {
-          if (params?.status === "active") return m.statusEnum === "ACTIVATED";
-          return true;
-        })
-        .map((m) => this.mapMarket(m));
-    } catch (err) {
-      console.error("Opinion getMarkets error:", err);
-      return this.getMockMarkets();
-    }
+    return response.result.list
+      .filter((m) => {
+        if (params?.status === "active") return m.statusEnum === "ACTIVATED";
+        return true;
+      })
+      .map((m) => this.mapMarket(m));
   }
 
   async getOrderbook(marketId: string): Promise<Orderbook> {
-    if (!this.apiKey) {
-      return this.getMockOrderbook(marketId);
+    if (!this.isConfigured) {
+      throw new Error("Opinion service is disabled");
     }
 
-    try {
-      const response = await this.fetchOpenApi<OpinionOrderbookResponse>(
-        `/token/orderbook?token_id=${marketId}`
-      );
+    const response = await this.fetchOpenApi<OpinionOrderbookResponse>(
+      `/token/orderbook?token_id=${marketId}`
+    );
 
-      if (response.code !== 0) {
-        return this.getMockOrderbook(marketId);
-      }
-
-      const bids = response.result.bids.map((b) => ({
-        price: parseFloat(b.price),
-        size: parseFloat(b.size),
-      }));
-      const asks = response.result.asks.map((a) => ({
-        price: parseFloat(a.price),
-        size: parseFloat(a.size),
-      }));
-
-      const bestBid = bids[0]?.price ?? 0;
-      const bestAsk = asks[0]?.price ?? 1;
-
-      return {
-        marketId,
-        platform: "opinion",
-        bids,
-        asks,
-        midpoint: (bestBid + bestAsk) / 2,
-        spread: bestAsk - bestBid,
-      };
-    } catch {
-      return this.getMockOrderbook(marketId);
+    if (response.code !== 0) {
+      throw new Error(`Opinion orderbook error: ${response.msg}`);
     }
+
+    const bids = response.result.bids.map((b) => ({
+      price: parseFloat(b.price),
+      size: parseFloat(b.size),
+    }));
+    const asks = response.result.asks.map((a) => ({
+      price: parseFloat(a.price),
+      size: parseFloat(a.size),
+    }));
+
+    const bestBid = bids[0]?.price ?? 0;
+    const bestAsk = asks[0]?.price ?? 1;
+
+    return {
+      marketId,
+      platform: "opinion",
+      bids,
+      asks,
+      midpoint: (bestBid + bestAsk) / 2,
+      spread: bestAsk - bestBid,
+    };
   }
 
   async getMarketPrice(
     marketId: string
   ): Promise<{ yes: number; no: number }> {
-    if (!this.apiKey) {
-      return { yes: 0.55, no: 0.45 };
+    if (!this.isConfigured) {
+      throw new Error("Opinion service is disabled");
     }
 
-    try {
-      const response = await this.fetchOpenApi<{
-        code: number;
-        result: { price: string };
-      }>(`/token/latest-price?token_id=${marketId}`);
+    const response = await this.fetchOpenApi<{
+      code: number;
+      result: { price: string };
+    }>(`/token/latest-price?token_id=${marketId}`);
 
-      const price = parseFloat(response.result?.price ?? "0.5");
-      return { yes: price, no: 1 - price };
-    } catch {
-      return { yes: 0.5, no: 0.5 };
-    }
+    const price = parseFloat(response.result?.price ?? "0.5");
+    return { yes: price, no: 1 - price };
   }
 
   async placeOrder(order: Order): Promise<TradeResult> {
-    if (!this.privateKey || !this.multiSigAddr) {
-      return {
-        orderId: `op-mock-${Date.now()}`,
-        status: "rejected",
-        filledSize: 0,
-        filledPrice: 0,
-        cost: 0,
-        timestamp: new Date().toISOString(),
-      };
+    if (!this.isConfigured || !this.privateKey) {
+      throw new Error("Opinion service is disabled or wallet not configured");
     }
 
-    // In production: use EIP-712 signing via CLOB SDK
-    // For hackathon: direct REST API call with signed order
+    // TODO: EIP-712 signing via CLOB SDK when API key is live
     return {
       orderId: `op-${Date.now()}`,
       status: "pending",
@@ -198,126 +178,42 @@ export class OpinionService implements MarketConnector {
   }
 
   async getPositions(walletAddress: string): Promise<Position[]> {
-    if (!this.apiKey) return [];
+    if (!this.isConfigured) return [];
 
-    try {
-      const response = await this.fetchOpenApi<{
-        code: number;
-        result: {
-          list: Array<{
-            marketId: string;
-            marketTitle: string;
-            tokenId: string;
-            side: string;
-            size: string;
-            avgPrice: string;
-            currentPrice: string;
-          }>;
-        };
-      }>(`/positions/user/${walletAddress}`);
+    const response = await this.fetchOpenApi<{
+      code: number;
+      result: {
+        list: Array<{
+          marketId: string;
+          marketTitle: string;
+          tokenId: string;
+          side: string;
+          size: string;
+          avgPrice: string;
+          currentPrice: string;
+        }>;
+      };
+    }>(`/positions/user/${walletAddress}`);
 
-      if (response.code !== 0 || !response.result?.list) return [];
+    if (response.code !== 0 || !response.result?.list) return [];
 
-      return response.result.list.map((p) => {
-        const size = parseFloat(p.size);
-        const avgEntry = parseFloat(p.avgPrice);
-        const current = parseFloat(p.currentPrice);
-        return {
-          marketId: p.marketId,
-          platform: "opinion" as const,
-          marketTitle: p.marketTitle,
-          outcomeLabel: p.side,
-          size,
-          avgEntryPrice: avgEntry,
-          currentPrice: current,
-          pnl: (current - avgEntry) * size,
-          pnlPercent: avgEntry > 0 ? ((current - avgEntry) / avgEntry) * 100 : 0,
-          resolutionDate: "",
-        };
-      });
-    } catch {
-      return [];
-    }
-  }
-
-  // ═══ Mock data for demo when API key is not available ═══
-
-  private getMockMarkets(): Market[] {
-    return [
-      {
-        id: "op-btc-90k-feb28",
-        platform: "opinion",
-        slug: "btc-above-90k-feb28",
-        title: "Will BTC stay above $90,000 through Feb 28?",
-        description: "Resolves YES if Bitcoin price remains above $90,000 USD at market close on February 28, 2026.",
-        outcomes: [
-          { id: "yes-1", label: "YES", price: 0.61, bestBid: 0.60, bestAsk: 0.62 },
-          { id: "no-1", label: "NO", price: 0.39, bestBid: 0.38, bestAsk: 0.40 },
-        ],
-        resolutionDate: "2026-02-28T23:59:59Z",
-        category: "crypto",
-        liquidity: 32000,
-        volume24h: 8500,
-        status: "active",
-        url: "https://opinion.trade/markets/btc-above-90k-feb28",
-        canonicalHash: canonicalHash("will btc stay above 90000 through feb 28", "2026-02-28"),
-      },
-      {
-        id: "op-eth-4000-mar",
-        platform: "opinion",
-        slug: "eth-4000-march",
-        title: "Will ETH hit $4,000 by March 2026?",
-        description: "Resolves YES if Ethereum price reaches $4,000 USD at any point before March 31, 2026.",
-        outcomes: [
-          { id: "yes-2", label: "YES", price: 0.42, bestBid: 0.41, bestAsk: 0.43 },
-          { id: "no-2", label: "NO", price: 0.58, bestBid: 0.57, bestAsk: 0.59 },
-        ],
-        resolutionDate: "2026-03-31T23:59:59Z",
-        category: "crypto",
-        liquidity: 25000,
-        volume24h: 6200,
-        status: "active",
-        url: "https://opinion.trade/markets/eth-4000-march",
-        canonicalHash: canonicalHash("will eth hit 4000 by march", "2026-03-31"),
-      },
-      {
-        id: "op-fed-rate-march",
-        platform: "opinion",
-        slug: "fed-rate-cut-march",
-        title: "Fed rate cut in March 2026?",
-        description: "Resolves YES if the Federal Reserve cuts the federal funds rate at the March 2026 FOMC meeting.",
-        outcomes: [
-          { id: "yes-3", label: "YES", price: 0.48, bestBid: 0.47, bestAsk: 0.49 },
-          { id: "no-3", label: "NO", price: 0.52, bestBid: 0.51, bestAsk: 0.53 },
-        ],
-        resolutionDate: "2026-03-19T23:59:59Z",
-        category: "economics",
-        liquidity: 55000,
-        volume24h: 12000,
-        status: "active",
-        url: "https://opinion.trade/markets/fed-rate-cut-march",
-        canonicalHash: canonicalHash("fed rate cut march 2026", "2026-03-19"),
-      },
-    ];
-  }
-
-  private getMockOrderbook(marketId: string): Orderbook {
-    return {
-      marketId,
-      platform: "opinion",
-      bids: [
-        { price: 0.60, size: 5000 },
-        { price: 0.59, size: 8000 },
-        { price: 0.58, size: 12000 },
-      ],
-      asks: [
-        { price: 0.62, size: 4000 },
-        { price: 0.63, size: 7000 },
-        { price: 0.64, size: 10000 },
-      ],
-      midpoint: 0.61,
-      spread: 0.02,
-    };
+    return response.result.list.map((p) => {
+      const size = parseFloat(p.size);
+      const avgEntry = parseFloat(p.avgPrice);
+      const current = parseFloat(p.currentPrice);
+      return {
+        marketId: p.marketId,
+        platform: "opinion" as const,
+        marketTitle: p.marketTitle,
+        outcomeLabel: p.side,
+        size,
+        avgEntryPrice: avgEntry,
+        currentPrice: current,
+        pnl: (current - avgEntry) * size,
+        pnlPercent: avgEntry > 0 ? ((current - avgEntry) / avgEntry) * 100 : 0,
+        resolutionDate: "",
+      };
+    });
   }
 
   private mapMarket(m: OpinionMarketRaw): Market {

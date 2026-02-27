@@ -7,3 +7,7 @@ cache/
 typechain-types/
 *.log
 .DS_Store
+.eliza/
+.elizadb
+bun.lock
+ 
