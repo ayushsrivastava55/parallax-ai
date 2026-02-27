@@ -16,7 +16,7 @@ export const portfolioProvider: Provider = {
     _message: Memory,
     _state: State
   ): Promise<ProviderResult> => {
-    const wallet = runtime.getSetting('BNB_PUBLIC_KEY') || process.env.BNB_PUBLIC_KEY;
+    const wallet = String(runtime.getSetting('BNB_PUBLIC_KEY') || process.env.BNB_PUBLIC_KEY || '');
 
     if (!wallet) {
       return {

@@ -37,11 +37,15 @@ async function fetchRealMarkets(): Promise<TickerItem[]> {
     if (items.length >= 8) break;
   }
 
+  if (items.length === 0) {
+    throw new Error('No open markets returned from Predict.fun');
+  }
   return items;
 }
 
 export function LiveTicker() {
   const [items, setItems] = useState<TickerItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -50,6 +54,7 @@ export function LiveTicker() {
       try {
         const real = await fetchRealMarkets();
         if (!mounted) return;
+        setError(null);
 
         // Compute delta from previous fetch
         setItems(prev => {
@@ -63,7 +68,8 @@ export function LiveTicker() {
           });
         });
       } catch {
-        // No data — show nothing
+        if (!mounted) return;
+        setError('Live market feed unavailable. Check Predict.fun API connectivity.');
       }
     };
 
@@ -71,6 +77,23 @@ export function LiveTicker() {
     const poll = setInterval(load, 30000);
     return () => { mounted = false; clearInterval(poll); };
   }, []);
+
+  if (error) {
+    return (
+      <div style={{
+        borderTop: '1px solid var(--line)',
+        borderBottom: '1px solid var(--line)',
+        padding: '9px 16px',
+        overflow: 'hidden',
+        background: 'var(--bg)',
+        fontFamily: 'var(--mono)',
+        fontSize: 11,
+        color: 'var(--red)',
+      }}>
+        {error}
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

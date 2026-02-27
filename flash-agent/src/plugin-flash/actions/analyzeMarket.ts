@@ -274,24 +274,14 @@ Respond in this exact JSON format:
 
 Respond ONLY with the JSON object. No explanation, no markdown.`;
 
-      const currentYesPrice = targetMarket.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes')?.price ?? 0.5;
-      const marketSpecificFallback = {
-        supporting: [
-          `Market "${targetMarket.title}" is currently priced at ${(currentYesPrice * 100).toFixed(0)}% implied probability`,
-          `Listed on ${targetMarket.platform === 'predictfun' ? 'Predict.fun' : 'Opinion'} with ${crossPlatformPrices.length} platform(s) tracked`,
-          targetMarket.liquidity > 0 ? `Liquidity: $${targetMarket.liquidity.toLocaleString()}` : 'Active trading observed',
-        ],
-        contradicting: [
-          'Research model unavailable — baseline analysis only',
-          'Market-implied probability used as estimate',
-        ],
-        modelProbability: Math.round(currentYesPrice * 100),
-        riskScore: 5,
-        confidence: 'Low',
-        reasoning: 'Research model unavailable; using market-implied probability as baseline',
-      };
-
-      let research = { ...marketSpecificFallback };
+      let research: {
+        supporting: string[];
+        contradicting: string[];
+        modelProbability: number;
+        riskScore: number;
+        confidence: string;
+        reasoning: string;
+      } | null = null;
 
       try {
         const researchText = await runtime.useModel(ModelType.TEXT_LARGE, {
@@ -324,11 +314,22 @@ Respond ONLY with the JSON object. No explanation, no markdown.`;
           }
         }
 
-        if (parsed && parsed.supporting) {
-          research = { ...research, ...parsed };
+        if (parsed && Array.isArray(parsed.supporting) && typeof parsed.modelProbability === 'number') {
+          research = {
+            supporting: parsed.supporting,
+            contradicting: Array.isArray(parsed.contradicting) ? parsed.contradicting : [],
+            modelProbability: parsed.modelProbability,
+            riskScore: typeof parsed.riskScore === 'number' ? parsed.riskScore : 5,
+            confidence: typeof parsed.confidence === 'string' ? parsed.confidence : 'Medium',
+            reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : 'No reasoning provided',
+          };
         }
       } catch (err) {
-        logger.warn('Research generation failed, using market-specific fallback:', err);
+        logger.warn('Research generation failed:', err);
+      }
+
+      if (!research) {
+        throw new Error('Research model output invalid/unavailable; analysis aborted (no fallback).');
       }
 
       // Step 5: Statistical evaluation

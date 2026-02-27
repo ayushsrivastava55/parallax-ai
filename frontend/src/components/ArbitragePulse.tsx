@@ -39,6 +39,7 @@ export function ArbitragePulse() {
   const [arbs, setArbs] = useState<ArbData[]>([]);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch real arb data from agent
   useEffect(() => {
@@ -49,11 +50,18 @@ export function ArbitragePulse() {
         const res = await fetch('/api/flash/arb-scan');
         if (!res.ok) throw new Error('not ok');
         const json = await res.json();
-        if (json.success && json.data?.length > 0 && mounted) {
+        if (!mounted) return;
+        if (json.success && json.data?.length > 0) {
           setArbs(mapApiToArbs(json.data));
+          setError(null);
+        } else {
+          setArbs([]);
+          setError('No live arb opportunities returned.');
         }
       } catch {
-        // No data available
+        if (!mounted) return;
+        setArbs([]);
+        setError('Arb scan unavailable. Start agent and verify /api/flash/arb-scan.');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -126,7 +134,7 @@ export function ArbitragePulse() {
           }}>
             {loading
               ? 'Scanning cross-platform opportunities...'
-              : 'Start agent to scan for arbitrage opportunities'}
+              : error || 'Start agent to scan for arbitrage opportunities'}
           </div>
         ) : (
           arbs.map((arb, i) => {

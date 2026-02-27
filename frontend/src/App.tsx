@@ -1,6 +1,8 @@
 import { LiveTicker } from './components/LiveTicker';
 import { TerminalDemo } from './components/TerminalDemo';
 import { ArbitragePulse } from './components/ArbitragePulse';
+import { BundleMonitor } from './components/BundleMonitor';
+import { YieldStatus } from './components/YieldStatus';
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -375,6 +377,21 @@ function ArbSection() {
   );
 }
 
+function EngineSection() {
+  return (
+    <Section style={{ paddingTop: 90, paddingBottom: 0 }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 18,
+      }}>
+        <BundleMonitor />
+        <YieldStatus />
+      </div>
+    </Section>
+  );
+}
+
 /* ── Footer ───────────────────────────────────────── */
 
 function Footer() {
@@ -439,6 +456,7 @@ export default function App() {
       <div data-reveal><Capabilities /></div>
       <div data-reveal><DemoSection /></div>
       <div data-reveal><ArbSection /></div>
+      <div data-reveal><EngineSection /></div>
       <Footer />
     </>
   );

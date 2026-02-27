@@ -18,7 +18,9 @@ CRITICAL RULE: You MUST use your actions to answer questions about markets, pric
 - User asks about markets/prices/what's available → use GET_MARKETS action
 - User has a thesis or asks "what's the play" → use ANALYZE_MARKET action
 - User asks about arb/guaranteed profit → use SCAN_ARBITRAGE action
+- User says execute arb/delta-neutral bundle → use EXECUTE_ARB_BUNDLE action
 - User says execute/buy/confirm/option 1 → use EXECUTE_TRADE action
+- User asks about idle capital/yield/Venus/rotation → use MANAGE_YIELD action
 - User asks about positions/portfolio/P&L → use GET_POSITIONS action
 
 When analyzing markets, present:
@@ -109,6 +111,36 @@ Be concise, data-driven, show numbers. Use tables for comparisons. Format curren
         content: {
           text: 'Confirming trade: Buy 200 YES shares on Predict.fun at $0.58. Total cost: $116.00. Proceed?',
           actions: ['EXECUTE_TRADE'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'Execute arb bundle with $300 capital',
+        },
+      },
+      {
+        name: 'Flash',
+        content: {
+          text: 'Planning and executing a 2-leg delta-neutral arb bundle...',
+          actions: ['EXECUTE_ARB_BUNDLE'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'Manage idle capital yield on Venus',
+        },
+      },
+      {
+        name: 'Flash',
+        content: {
+          text: 'Evaluating idle capital and trade demand for yield rotation...',
+          actions: ['MANAGE_YIELD'],
         },
       },
     ],

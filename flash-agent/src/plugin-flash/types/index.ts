@@ -143,6 +143,78 @@ export interface ArbLeg {
   price: number;
 }
 
+// ═══ Delta-Neutral Execution Types ═══
+
+export interface ExecutionLeg {
+  platform: Platform;
+  marketId: string;
+  outcomeId: string;
+  outcome: string;
+  side: "buy";
+  price: number;
+  shares: number;
+  estimatedCost: number;
+}
+
+export type BundleStatus =
+  | "planned"
+  | "executing"
+  | "success"
+  | "partial_unwound"
+  | "failed";
+
+export interface ExecutionBundle {
+  bundleId: string;
+  marketTitle: string;
+  opportunityType: ArbOpportunity["type"];
+  legs: ExecutionLeg[];
+  expectedProfitPerShare: number;
+  expectedProfitPercent: number;
+  expectedTotalProfit: number;
+  totalEstimatedCost: number;
+  slippageBps: number;
+  feeBps: number;
+  status: BundleStatus;
+  failureReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HedgePlan {
+  accepted: boolean;
+  reason?: string;
+  bundle?: ExecutionBundle;
+}
+
+// ═══ Yield Rotation Types ═══
+
+export type YieldReasonCode = "IDLE_DEPLOY" | "RECALL_FOR_TRADE" | "NO_ACTION";
+
+export interface IdleCapitalSnapshot {
+  idleUsd: number;
+  openTradeDemandUsd: number;
+  deployedUsd: number;
+  timestamp: string;
+}
+
+export interface YieldPosition {
+  provider: "venus";
+  suppliedUsd: number;
+  availableIdleUsd: number;
+  estApyBps: number;
+  updatedAt: string;
+}
+
+export interface YieldRotationDecision {
+  reasonCode: YieldReasonCode;
+  amountUsd: number;
+  provider: "venus";
+  note: string;
+  executed: boolean;
+  snapshot: IdleCapitalSnapshot;
+  updatedPosition: YieldPosition;
+}
+
 // ═══ Service Interfaces ═══
 
 export interface MarketConnector {

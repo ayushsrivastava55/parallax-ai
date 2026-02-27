@@ -7,6 +7,7 @@ import type {
   MarketConnector,
 } from "../types/index.js";
 import { canonicalHash } from "../utils/matching.js";
+import { AbiCoder, Wallet, getBytes, keccak256 } from "ethers";
 
 const TESTNET_API = "https://api-testnet.predict.fun";
 const MAINNET_API = "https://api.predict.fun";
@@ -14,6 +15,7 @@ const MAINNET_API = "https://api.predict.fun";
 interface PredictFunConfig {
   apiKey?: string;
   useTestnet?: boolean;
+  privateKey?: string;
 }
 
 interface PFMarket {
@@ -49,10 +51,12 @@ export class PredictFunService implements MarketConnector {
   platform = "predictfun" as const;
   private baseUrl: string;
   private apiKey?: string;
+  private privateKey?: string;
 
   constructor(config: PredictFunConfig = {}) {
     this.baseUrl = config.useTestnet !== false ? TESTNET_API : MAINNET_API;
     this.apiKey = config.apiKey;
+    this.privateKey = config.privateKey;
   }
 
   private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -131,60 +135,81 @@ export class PredictFunService implements MarketConnector {
   async placeOrder(order: Order): Promise<TradeResult> {
     const timestamp = new Date().toISOString();
     const nonce = Date.now();
+    const outcomeIndex = order.outcomeId.toLowerCase().includes("no") ? 1 : 0;
+    const priceMicros = BigInt(Math.round(order.price * 1_000_000));
+    const sizeMicros = BigInt(Math.round(order.size * 1_000_000));
 
-    // Build deterministic order hash from real parameters
-    const orderData = `${order.marketId}:${order.outcomeId}:${order.side}:${order.price}:${order.size}:${nonce}`;
-    const orderId = await this.hashOrder(orderData);
+    const encoded = AbiCoder.defaultAbiCoder().encode(
+      ["string", "string", "string", "uint8", "uint256", "uint256", "uint256"],
+      [order.marketId, order.outcomeId, order.side, outcomeIndex, priceMicros, sizeMicros, BigInt(nonce)]
+    );
+    const orderId = keccak256(encoded);
+
+    let signature: string | undefined;
+    let signerAddress: string | undefined;
+    if (this.privateKey) {
+      try {
+        const signer = new Wallet(this.privateKey);
+        signerAddress = signer.address;
+        signature = await signer.signMessage(getBytes(orderId));
+      } catch {
+        // Keep deterministic order hash even if signing fails
+      }
+    }
 
     // Attempt real order submission to testnet
+    let submissionError = "Unknown submission failure";
     try {
       const response = await this.fetch<{
         success: boolean;
-        data?: { orderId: string; status: string };
+        data?: { orderId?: string; status?: string };
         error?: string;
       }>("/v1/orders", {
         method: "POST",
         body: JSON.stringify({
           marketId: parseInt(order.marketId),
-          outcomeIndex: order.outcomeId === "yes" ? 0 : 1,
+          outcomeIndex,
           side: order.side.toUpperCase(),
           price: order.price,
           size: order.size,
           type: order.type.toUpperCase(),
           nonce,
+          signature,
+          signerAddress,
+          clientOrderId: orderId,
         }),
       });
 
       if (response.success && response.data) {
+        const remoteStatus = String(response.data.status || "submitted").toLowerCase();
+        const status: TradeResult["status"] =
+          remoteStatus === "filled"
+            ? "filled"
+            : remoteStatus === "partial"
+            ? "partial"
+            : remoteStatus === "pending"
+            ? "pending"
+            : remoteStatus === "rejected"
+            ? "rejected"
+            : "submitted";
         return {
-          orderId: response.data.orderId,
-          status: "filled",
+          orderId: response.data.orderId || orderId,
+          status,
           filledSize: order.size,
           filledPrice: order.price,
           cost: order.size * order.price,
           timestamp,
+          txHash: signature,
         };
       }
+      submissionError = response.error || "Predict.fun rejected order payload";
     } catch {
-      // Testnet likely requires CLOB registration — fall through to signed order
+      submissionError = "Predict.fun order endpoint unreachable or rejected request";
     }
 
-    // Return a cryptographically-identified order (deterministic hash, not random)
-    return {
-      orderId: orderId,
-      status: "submitted",
-      filledSize: order.size,
-      filledPrice: order.price,
-      cost: order.size * order.price,
-      timestamp,
-    };
-  }
-
-  private async hashOrder(data: string): Promise<string> {
-    const encoded = new TextEncoder().encode(data);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", encoded);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    throw new Error(
+      `Predict.fun order submission failed: ${submissionError}. Deterministic order hash: ${orderId}`
+    );
   }
 
   async getPositions(_walletAddress: string): Promise<Position[]> {

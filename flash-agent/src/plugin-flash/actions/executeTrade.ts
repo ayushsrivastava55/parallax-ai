@@ -114,7 +114,10 @@ export const executeTradeAction: Action = {
 
       let result: TradeResult;
       if (tradeIntent.platform === 'predictfun') {
-        const pf = new PredictFunService({ useTestnet: true });
+        const pf = new PredictFunService({
+          useTestnet: true,
+          privateKey: String(runtime.getSetting('BNB_PRIVATE_KEY') || process.env.BNB_PRIVATE_KEY || ''),
+        });
         result = await pf.placeOrder(order);
       } else {
         const opinionKey = String(runtime.getSetting('OPINION_API_KEY') || process.env.OPINION_API_KEY || '');

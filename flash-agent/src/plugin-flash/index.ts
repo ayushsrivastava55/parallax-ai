@@ -7,6 +7,8 @@ import { analyzeMarketAction } from './actions/analyzeMarket.ts';
 import { executeTradeAction } from './actions/executeTrade.ts';
 import { scanArbitrageAction } from './actions/scanArbitrage.ts';
 import { getPositionsAction } from './actions/getPositions.ts';
+import { executeArbBundleAction } from './actions/executeArbBundle.ts';
+import { manageYieldAction } from './actions/manageYield.ts';
 
 // Providers
 import { marketDataProvider } from './providers/marketData.ts';
@@ -16,6 +18,8 @@ import { portfolioProvider } from './providers/portfolio.ts';
 import { PredictFunService } from './services/predictfun.ts';
 import { OpinionService } from './services/opinion.ts';
 import { ArbEngine } from './services/arbEngine.ts';
+import { getBundles } from './services/bundleStore.ts';
+import { YieldRouter } from './services/yieldRouter.ts';
 
 const flashPlugin: Plugin = {
   name: 'flash',
@@ -32,7 +36,9 @@ const flashPlugin: Plugin = {
     analyzeMarketAction,
     getMarketsAction,
     executeTradeAction,
+    executeArbBundleAction,
     scanArbitrageAction,
+    manageYieldAction,
     getPositionsAction,
   ],
 
@@ -69,6 +75,34 @@ const flashPlugin: Plugin = {
             error: error instanceof Error ? error.message : 'Unknown error',
           });
         }
+      },
+    },
+    {
+      type: 'GET',
+      path: '/api/flash/bundles',
+      handler: async (req, res) => {
+        const limit = Number(req.query?.limit || 25);
+        res.json({
+          success: true,
+          data: getBundles(limit),
+          timestamp: new Date().toISOString(),
+        });
+      },
+    },
+    {
+      type: 'GET',
+      path: '/api/flash/yield-status',
+      handler: async (req, res, runtime) => {
+        const router = new YieldRouter({
+          minIdleUsd: Number(runtime.getSetting('YIELD_MIN_IDLE_USD') || process.env.YIELD_MIN_IDLE_USD || 500),
+          recallBufferUsd: Number(runtime.getSetting('YIELD_RECALL_BUFFER_USD') || process.env.YIELD_RECALL_BUFFER_USD || 200),
+          maxUtilizationPct: Number(runtime.getSetting('YIELD_MAX_UTILIZATION_PCT') || process.env.YIELD_MAX_UTILIZATION_PCT || 80),
+        });
+        res.json({
+          success: true,
+          data: router.getStatus(),
+          timestamp: new Date().toISOString(),
+        });
       },
     },
   ],
