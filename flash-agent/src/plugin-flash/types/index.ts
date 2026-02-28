@@ -1,6 +1,6 @@
 // ═══ Core Market Types ═══
 
-export type Platform = "opinion" | "predictfun";
+export type Platform = "opinion" | "predictfun" | "probable" | "xmarket";
 
 export interface Market {
   id: string;

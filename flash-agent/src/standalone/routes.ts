@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { PredictFunService } from '../plugin-flash/services/predictfun.ts';
 import { OpinionService } from '../plugin-flash/services/opinion.ts';
+import { ProbableService } from '../plugin-flash/services/probable.ts';
+import { XmarketService } from '../plugin-flash/services/xmarket.ts';
 import { ArbEngine } from '../plugin-flash/services/arbEngine.ts';
 import { YieldRouter } from '../plugin-flash/services/yieldRouter.ts';
 import { buildERC8004Config, ERC8004Service } from '../plugin-flash/services/erc8004.ts';
@@ -10,7 +12,7 @@ import {
   recordTradeResult,
   refreshLivePrices,
 } from '../plugin-flash/services/positionLedger.ts';
-import type { Market, Order, Platform, Position, TradeResult } from '../plugin-flash/types/index.ts';
+import type { Market, MarketConnector, Order, Platform, Position, TradeResult } from '../plugin-flash/types/index.ts';
 import {
   analyzeMarketSchema,
   arbScanSchema,
@@ -21,6 +23,7 @@ import {
   yieldManageSchema,
   botHeartbeatSchema,
   botActivitySchema,
+  agentRegisterSchema,
 } from '../gateway/schemas/index.ts';
 import type {
   GatewayAuthContext,
@@ -42,6 +45,7 @@ import {
   getBot,
   getAllBots,
   getPlatformStats,
+  setBotWalletAddress,
 } from '../gateway/services/botRegistry.ts';
 import {
   recordActivity,
@@ -146,6 +150,14 @@ function parseRouteError(error: unknown): { code: string; message: string; statu
   return { code: 'INTERNAL_ERROR', message: msg, status: 500 };
 }
 
+function makePredictFun(opts?: { withPrivateKey?: boolean }): PredictFunService {
+  return new PredictFunService({
+    useTestnet: true,
+    apiKey: String(process.env.PREDICT_FUN_API_KEY || ''),
+    ...(opts?.withPrivateKey ? { privateKey: String(process.env.BNB_PRIVATE_KEY || '') } : {}),
+  });
+}
+
 function makeOpinion(): OpinionService {
   const opinionKey = String(process.env.OPINION_API_KEY || '');
   return new OpinionService({
@@ -155,21 +167,63 @@ function makeOpinion(): OpinionService {
   });
 }
 
+function makeProbable(): ProbableService {
+  return new ProbableService({
+    enabled: process.env.PROBABLE_ENABLED !== 'false', // enabled by default (public API)
+    privateKey: String(process.env.BNB_PRIVATE_KEY || ''),
+  });
+}
+
+function makeXmarket(): XmarketService {
+  const xmarketKey = String(process.env.XMARKET_API_KEY || '');
+  return new XmarketService({
+    enabled: !!xmarketKey,
+    apiKey: xmarketKey,
+  });
+}
+
 async function collectMarkets(platforms?: Platform[], status: 'active' | 'all' = 'active'): Promise<Market[]> {
   const predictfun = new PredictFunService({ useTestnet: true });
   const opinion = makeOpinion();
+  const probable = makeProbable();
+  const xmarket = makeXmarket();
 
   const includePf = !platforms || platforms.includes('predictfun');
   const includeOp = !platforms || platforms.includes('opinion');
-  const [pf, op] = await Promise.allSettled([
+  const includePr = !platforms || platforms.includes('probable');
+  const includeXm = !platforms || platforms.includes('xmarket');
+
+  const [pf, op, pr, xm] = await Promise.allSettled([
     includePf ? predictfun.getMarkets({ status }) : Promise.resolve([]),
     includeOp ? opinion.getMarkets({ status }) : Promise.resolve([]),
+    includePr ? probable.getMarkets({ status }) : Promise.resolve([]),
+    includeXm && xmarket.isConfigured ? xmarket.getMarkets({ status }) : Promise.resolve([]),
   ]);
 
   const all: Market[] = [];
   if (pf.status === 'fulfilled') all.push(...pf.value);
   if (op.status === 'fulfilled') all.push(...op.value);
+  if (pr.status === 'fulfilled') all.push(...pr.value);
+  if (xm.status === 'fulfilled') all.push(...xm.value);
   return all;
+}
+
+function resolvePlatformService(platform: Platform): MarketConnector {
+  switch (platform) {
+    case 'predictfun':
+      return new PredictFunService({
+        useTestnet: true,
+        privateKey: String(process.env.BNB_PRIVATE_KEY || ''),
+      });
+    case 'opinion':
+      return makeOpinion();
+    case 'probable':
+      return makeProbable();
+    case 'xmarket':
+      return makeXmarket();
+    default:
+      throw new Error(`Unsupported platform: ${platform}`);
+  }
 }
 
 function normalizePosition(p: Position): Position {
@@ -357,13 +411,7 @@ async function handleTradeQuote(req: Request, res: Response): Promise<void> {
       );
     }
 
-    const platformService =
-      input.platform === 'predictfun'
-        ? new PredictFunService({
-            useTestnet: true,
-            privateKey: String(process.env.BNB_PRIVATE_KEY || ''),
-          })
-        : makeOpinion();
+    const platformService = resolvePlatformService(input.platform);
 
     const prices = await platformService.getMarketPrice(input.marketId);
     const price = input.side === 'YES' ? prices.yes : prices.no;
@@ -477,20 +525,37 @@ async function handleTradeExecute(req: Request, res: Response): Promise<void> {
       type: 'limit',
     };
 
+    // Resolve per-agent wallet: use bot-provided signature or fall back to global key
+    const botSignature = parsed.data.signature;
+    const botSignerAddress = parsed.data.signerAddress;
+    const bot = getBot(auth.context.agentId);
+    const useRelayMode = !!(botSignature && botSignerAddress);
+
     let result: TradeResult;
     if (payload.platform === 'predictfun') {
       const pf = new PredictFunService({
         useTestnet: true,
-        privateKey: String(process.env.BNB_PRIVATE_KEY || ''),
+        privateKey: useRelayMode ? undefined : String(process.env.BNB_PRIVATE_KEY || ''),
       });
-      result = await pf.placeOrder(order);
-    } else {
+      result = await pf.placeOrder(
+        order,
+        useRelayMode ? { signature: botSignature, signerAddress: botSignerAddress } : undefined,
+      );
+    } else if (payload.platform === 'opinion') {
       const opinionExecutionEnabled = String(process.env.OPINION_EXECUTION_ENABLED || 'false') === 'true';
       if (!opinionExecutionEnabled) {
         throw new Error('Opinion execution is disabled (read-only connector until CLOB integration is enabled).');
       }
       const op = makeOpinion();
       result = await op.placeOrder(order);
+    } else if (payload.platform === 'probable') {
+      const pr = makeProbable();
+      result = await pr.placeOrder(order);
+    } else if (payload.platform === 'xmarket') {
+      const xm = makeXmarket();
+      result = await xm.placeOrder(order);
+    } else {
+      throw new Error(`Unsupported platform: ${payload.platform}`);
     }
 
     if (result.filledSize > 0) {
@@ -500,6 +565,7 @@ async function handleTradeExecute(req: Request, res: Response): Promise<void> {
         marketTitle: payload.marketTitle || order.marketId,
         outcomeLabel: payload.side,
         source: 'gateway',
+        agentId: auth.context.agentId,
       });
       recordBotTrade(auth.context.agentId, result.filledSize * result.filledPrice);
     }
@@ -560,24 +626,39 @@ async function handlePositionsList(req: Request, res: Response): Promise<void> {
   }
 
   try {
-    const walletAddress = parsed.data.wallet || String(process.env.BNB_PUBLIC_KEY || '');
+    // Resolve wallet: registered bot's wallet > request body > global env
+    const bot = getBot(auth.context.agentId);
+    const walletAddress = parsed.data.wallet || bot?.walletAddress || String(process.env.BNB_PUBLIC_KEY || '');
     const predictfun = new PredictFunService({ useTestnet: true });
     const opinion = makeOpinion();
+    const probable = makeProbable();
+    const xmarket = makeXmarket();
     const diagnostics: string[] = [];
 
+    // Filter ledger positions by agentId if bot has a registered wallet (segregated)
+    const agentIdFilter = bot?.walletAddress ? auth.context.agentId : undefined;
     const ledgerPositions = parsed.data.includeVirtual
-      ? await refreshLivePrices(await getLedgerPositions(), { predictfun, opinion })
+      ? await refreshLivePrices(await getLedgerPositions(agentIdFilter), { predictfun, opinion, probable, xmarket })
       : [];
-    let opinionPositions: Position[] = [];
+    let externalPositions: Position[] = [];
     if (walletAddress && opinion.isConfigured) {
       try {
-        opinionPositions = await opinion.getPositions(walletAddress);
+        const opPos = await opinion.getPositions(walletAddress);
+        externalPositions.push(...opPos);
       } catch (error) {
         diagnostics.push(`Opinion positions unavailable: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+    if (walletAddress && xmarket.isConfigured) {
+      try {
+        const xmPos = await xmarket.getPositions(walletAddress);
+        externalPositions.push(...xmPos);
+      } catch (error) {
+        diagnostics.push(`Xmarket positions unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
 
-    const clean = mergePositions(ledgerPositions, opinionPositions).map(normalizePosition);
+    const clean = mergePositions(ledgerPositions, externalPositions).map(normalizePosition);
     const totals = clean.reduce(
       (acc, p) => {
         acc.totalPnl += p.pnl;
@@ -627,7 +708,10 @@ async function handleArbScan(req: Request, res: Response): Promise<void> {
   try {
     const predictfun = new PredictFunService({ useTestnet: true });
     const opinion = makeOpinion();
-    const arbEngine = new ArbEngine({ predictfun, opinion });
+    const probable = makeProbable();
+    const xmarket = makeXmarket();
+    const connectors = [probable, ...(xmarket.isConfigured ? [xmarket] : [])];
+    const arbEngine = new ArbEngine({ predictfun, opinion, connectors });
 
     const opportunities = await arbEngine.scanAll();
     const filtered = parsed.data.platforms?.length
@@ -724,6 +808,181 @@ async function handleAgentIdentity(req: Request, res: Response): Promise<void> {
     ]);
 
     return respond(res, 200, asSuccess(requestId, { enabled: true, identity, reputation, flashStats }));
+  } catch (error) {
+    const parsedErr = parseRouteError(error);
+    return respond(res, parsedErr.status, asFailure(requestId, parsedErr.code, parsedErr.message));
+  }
+}
+
+/* ── Agent registration ───────────────────────────────────────── */
+
+async function handleAgentRegister(req: Request, res: Response): Promise<void> {
+  const requestId = randomUUID();
+  const auth = requireAuth(req, requestId);
+  if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.register');
+
+  const parsed = agentRegisterSchema.safeParse(parseBody(req));
+  if (!parsed.success) {
+    return respond(
+      res,
+      400,
+      asFailure(requestId, 'VALIDATION_ERROR', 'Invalid registration payload', { issues: parsed.error.issues }),
+    );
+  }
+
+  const { walletAddress, erc8004AgentId } = parsed.data;
+  let onChainVerified = false;
+
+  // Verify on-chain ownership if ERC-8004 agentId is provided
+  if (erc8004AgentId !== undefined) {
+    try {
+      const ercConfig = buildERC8004Config();
+      if (ercConfig) {
+        const service = new ERC8004Service(ercConfig);
+        const identity = await service.getAgentIdentity();
+        // Temporarily set the agentId to check ownership
+        const { ethers } = await import('ethers');
+        const provider = new ethers.JsonRpcProvider(ercConfig.rpcUrl);
+        const identityRegistry = new ethers.Contract(
+          ercConfig.identityRegistryAddress,
+          ['function ownerOf(uint256) view returns (address)'],
+          provider,
+        );
+        const owner = await identityRegistry.ownerOf(erc8004AgentId);
+        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
+          onChainVerified = true;
+        } else {
+          return respond(
+            res,
+            403,
+            asFailure(requestId, 'OWNERSHIP_MISMATCH', 'On-chain ownerOf does not match provided wallet address', {
+              expected: walletAddress,
+              actual: owner,
+            }),
+          );
+        }
+      }
+    } catch (error) {
+      auditLog('bots.register.erc8004_check_failed', {
+        requestId,
+        agentId: auth.context.agentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Non-fatal: proceed without on-chain verification
+    }
+  }
+
+  // Register wallet in bot registry
+  ensureBotRegistered(auth.context.agentId, auth.context.keyId);
+  setBotWalletAddress(auth.context.agentId, walletAddress, erc8004AgentId, onChainVerified);
+
+  auditLog('bots.register', {
+    requestId,
+    agentId: auth.context.agentId,
+    walletAddress,
+    erc8004AgentId,
+    onChainVerified,
+  });
+
+  return respond(
+    res,
+    200,
+    asSuccess(requestId, {
+      agentId: auth.context.agentId,
+      walletAddress,
+      erc8004AgentId: erc8004AgentId ?? null,
+      onChainVerified,
+    }),
+  );
+}
+
+/* ── Proxy wallet routes ──────────────────────────────────────── */
+
+async function handleSetupProxy(req: Request, res: Response): Promise<void> {
+  const requestId = randomUUID();
+  const auth = requireAuth(req, requestId);
+  if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.setup-proxy');
+
+  try {
+    const probable = makeProbable();
+    const proxyAddress = await probable.ensureProxyDeployed();
+
+    auditLog('bots.setup-proxy', {
+      requestId,
+      agentId: auth.context.agentId,
+      proxyAddress,
+    });
+
+    return respond(
+      res,
+      200,
+      asSuccess(requestId, {
+        proxyAddress,
+        status: 'deployed',
+      }),
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (/already/i.test(msg)) {
+      return respond(res, 409, asFailure(requestId, 'PROXY_ALREADY_DEPLOYED', msg));
+    }
+    const parsedErr = parseRouteError(error);
+    return respond(res, parsedErr.status, asFailure(requestId, parsedErr.code, parsedErr.message));
+  }
+}
+
+async function handleProxyStatus(req: Request, res: Response): Promise<void> {
+  const requestId = randomUUID();
+  const auth = requireAuth(req, requestId);
+  if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.proxy-status');
+
+  try {
+    const probable = makeProbable();
+    const proxyAddress = await probable.resolveProxyAddress();
+
+    if (!proxyAddress) {
+      return respond(
+        res,
+        404,
+        asFailure(requestId, 'PROXY_NOT_DEPLOYED', 'No proxy wallet found — call POST /v1/bots/setup-proxy first'),
+      );
+    }
+
+    // Check USDT balance and approvals on BSC
+    const { ethers } = await import('ethers');
+    const provider = new ethers.JsonRpcProvider('https://bsc-dataseed.binance.org');
+    const USDT_BSC = '0x55d398326f99059fF775485246999027B3197955';
+    const EXCHANGE = '0xF99F5367ce708c66F0860B77B4331301A5597c86';
+    const erc20 = new ethers.Contract(
+      USDT_BSC,
+      ['function balanceOf(address) view returns (uint256)', 'function allowance(address,address) view returns (uint256)'],
+      provider,
+    );
+
+    const [balanceRaw, allowanceRaw] = await Promise.all([
+      erc20.balanceOf(proxyAddress).catch(() => 0n),
+      erc20.allowance(proxyAddress, EXCHANGE).catch(() => 0n),
+    ]);
+
+    const balance = Number(balanceRaw) / 1e18;
+    const approvalsOk = BigInt(allowanceRaw) > 0n;
+
+    return respond(
+      res,
+      200,
+      asSuccess(requestId, {
+        proxyAddress,
+        deployed: true,
+        usdtBalance: balance.toFixed(2),
+        approvalsOk,
+      }),
+    );
   } catch (error) {
     const parsedErr = parseRouteError(error);
     return respond(res, parsedErr.status, asFailure(requestId, parsedErr.code, parsedErr.message));
@@ -855,6 +1114,13 @@ export function createRouter(): Router {
 
   // Agent identity
   router.get('/agent/identity', handleAgentIdentity);
+
+  // Agent registration
+  router.post('/bots/register', handleAgentRegister);
+
+  // Proxy wallet (Probable)
+  router.post('/bots/setup-proxy', handleSetupProxy);
+  router.get('/bots/proxy-status', handleProxyStatus);
 
   // Platform / Bots (public)
   router.get('/platform/stats', handlePlatformStats);

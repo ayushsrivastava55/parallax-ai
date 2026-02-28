@@ -3,6 +3,7 @@ import type {
   ArbOpportunity,
   ArbLeg,
   Platform,
+  MarketConnector,
 } from "../types/index.js";
 import type { PredictFunService } from "./predictfun.js";
 import type { OpinionService } from "./opinion.js";
@@ -13,15 +14,18 @@ const CROSS_THRESHOLD = 0.015; // Cross-platform spread > 1.5% = arb
 interface ArbEngineConfig {
   predictfun: PredictFunService;
   opinion: OpinionService;
+  connectors?: MarketConnector[];
 }
 
 export class ArbEngine {
   private predictfun: PredictFunService;
   private opinion: OpinionService;
+  private connectors: MarketConnector[];
 
   constructor(config: ArbEngineConfig) {
     this.predictfun = config.predictfun;
     this.opinion = config.opinion;
+    this.connectors = config.connectors || [];
   }
 
   /**
@@ -140,92 +144,155 @@ export class ArbEngine {
       // Opinion not available
     }
 
+    // Scan additional connectors (Probable, Xmarket, etc.)
+    for (const connector of this.connectors) {
+      try {
+        const markets = await connector.getMarkets({ status: "active" });
+        for (const market of markets.slice(0, 20)) {
+          try {
+            const prices = await connector.getMarketPrice(market.id);
+            const totalCost = prices.yes + prices.no;
+
+            if (totalCost < INTRA_THRESHOLD && totalCost > 0) {
+              const profit = 1 - totalCost;
+              opportunities.push({
+                type: "intra_platform",
+                description: `Buy YES + NO on ${connector.platform} for $${totalCost.toFixed(4)}, guaranteed payout $1.00`,
+                platforms: [connector.platform],
+                marketTitle: market.title,
+                legs: [
+                  {
+                    platform: connector.platform,
+                    marketId: market.id,
+                    outcome: "YES",
+                    side: "buy",
+                    price: prices.yes,
+                  },
+                  {
+                    platform: connector.platform,
+                    marketId: market.id,
+                    outcome: "NO",
+                    side: "buy",
+                    price: prices.no,
+                  },
+                ],
+                totalCost,
+                guaranteedPayout: 1,
+                profit,
+                profitPercent: (profit / totalCost) * 100,
+                confidence: profit > 0.03 ? "high" : profit > 0.01 ? "medium" : "low",
+              });
+            }
+          } catch {
+            // Skip market
+          }
+        }
+      } catch {
+        // Connector not available
+      }
+    }
+
     return opportunities;
   }
 
   /**
-   * Cross-platform: Find same event on both platforms with price divergence.
+   * Cross-platform: Find same event on multiple platforms with price divergence.
    * If YES on platform A + NO on platform B < $1, guaranteed profit.
    */
   async scanCrossPlatform(): Promise<ArbOpportunity[]> {
     const opportunities: ArbOpportunity[] = [];
 
     try {
-      const [pfMarkets, opMarkets] = await Promise.all([
-        this.predictfun.getMarkets({ status: "active" }),
-        this.opinion.getMarkets({ status: "active" }),
-      ]);
+      // Collect markets from all available platforms
+      const allConnectors: MarketConnector[] = [this.predictfun, this.opinion, ...this.connectors];
+      const platformMarkets = await Promise.allSettled(
+        allConnectors.map(async (c) => ({
+          platform: c.platform,
+          connector: c,
+          markets: await c.getMarkets({ status: "active" }),
+        })),
+      );
 
-      // Match markets by canonical hash
-      for (const pfMarket of pfMarkets) {
-        if (!pfMarket.canonicalHash) continue;
+      const available = platformMarkets
+        .filter((r): r is PromiseFulfilledResult<{ platform: Platform; connector: MarketConnector; markets: Market[] }> =>
+          r.status === "fulfilled" && r.value.markets.length > 0,
+        )
+        .map((r) => r.value);
 
-        const matched = opMarkets.find(
-          (op) => op.canonicalHash === pfMarket.canonicalHash
-        );
-        if (!matched) continue;
+      if (available.length < 2) return opportunities;
 
-        // Get prices from both platforms
-        let pfPrices: { yes: number; no: number };
-        let opPrices: { yes: number; no: number };
+      // Compare each pair of platforms
+      for (let i = 0; i < available.length; i++) {
+        for (let j = i + 1; j < available.length; j++) {
+          const a = available[i];
+          const b = available[j];
 
-        try {
-          [pfPrices, opPrices] = await Promise.all([
-            this.predictfun.getMarketPrice(pfMarket.id),
-            this.opinion.getMarketPrice(matched.id),
-          ]);
-        } catch {
-          continue;
-        }
+          for (const marketA of a.markets) {
+            if (!marketA.canonicalHash) continue;
 
-        const spread = Math.abs(pfPrices.yes - opPrices.yes);
+            const marketB = b.markets.find(
+              (m) => m.canonicalHash === marketA.canonicalHash,
+            );
+            if (!marketB) continue;
 
-        if (spread > CROSS_THRESHOLD) {
-          // Determine arb direction
-          const buyYesPlatform: Platform =
-            pfPrices.yes < opPrices.yes ? "predictfun" : "opinion";
-          const buyNoPlatform: Platform =
-            buyYesPlatform === "predictfun" ? "opinion" : "predictfun";
+            let pricesA: { yes: number; no: number };
+            let pricesB: { yes: number; no: number };
 
-          const yesPrice =
-            buyYesPlatform === "predictfun" ? pfPrices.yes : opPrices.yes;
-          const noPrice =
-            buyNoPlatform === "predictfun" ? pfPrices.no : opPrices.no;
+            try {
+              [pricesA, pricesB] = await Promise.all([
+                a.connector.getMarketPrice(marketA.id),
+                b.connector.getMarketPrice(marketB.id),
+              ]);
+            } catch {
+              continue;
+            }
 
-          const totalCost = yesPrice + noPrice;
+            const spread = Math.abs(pricesA.yes - pricesB.yes);
+            if (spread <= CROSS_THRESHOLD) continue;
 
-          if (totalCost < 1) {
-            const profit = 1 - totalCost;
-            opportunities.push({
-              type: "cross_platform",
-              description: `Buy YES on ${buyYesPlatform} ($${yesPrice.toFixed(2)}) + NO on ${buyNoPlatform} ($${noPrice.toFixed(2)})`,
-              platforms: [buyYesPlatform, buyNoPlatform],
-              marketTitle: pfMarket.title,
-              legs: [
-                {
-                  platform: buyYesPlatform,
-                  marketId:
-                    buyYesPlatform === "predictfun" ? pfMarket.id : matched.id,
-                  outcome: "YES",
-                  side: "buy",
-                  price: yesPrice,
-                },
-                {
-                  platform: buyNoPlatform,
-                  marketId:
-                    buyNoPlatform === "predictfun" ? pfMarket.id : matched.id,
-                  outcome: "NO",
-                  side: "buy",
-                  price: noPrice,
-                },
-              ],
-              totalCost,
-              guaranteedPayout: 1,
-              profit,
-              profitPercent: (profit / totalCost) * 100,
-              confidence:
-                profit > 0.03 ? "high" : profit > 0.01 ? "medium" : "low",
-            });
+            const buyYesPlatform: Platform =
+              pricesA.yes < pricesB.yes ? a.platform : b.platform;
+            const buyNoPlatform: Platform =
+              buyYesPlatform === a.platform ? b.platform : a.platform;
+
+            const yesPrice = buyYesPlatform === a.platform ? pricesA.yes : pricesB.yes;
+            const noPrice = buyNoPlatform === a.platform ? pricesA.no : pricesB.no;
+            const yesMarketId = buyYesPlatform === a.platform ? marketA.id : marketB.id;
+            const noMarketId = buyNoPlatform === a.platform ? marketA.id : marketB.id;
+
+            const totalCost = yesPrice + noPrice;
+
+            if (totalCost < 1) {
+              const profit = 1 - totalCost;
+              opportunities.push({
+                type: "cross_platform",
+                description: `Buy YES on ${buyYesPlatform} ($${yesPrice.toFixed(2)}) + NO on ${buyNoPlatform} ($${noPrice.toFixed(2)})`,
+                platforms: [buyYesPlatform, buyNoPlatform],
+                marketTitle: marketA.title,
+                legs: [
+                  {
+                    platform: buyYesPlatform,
+                    marketId: yesMarketId,
+                    outcome: "YES",
+                    side: "buy",
+                    price: yesPrice,
+                  },
+                  {
+                    platform: buyNoPlatform,
+                    marketId: noMarketId,
+                    outcome: "NO",
+                    side: "buy",
+                    price: noPrice,
+                  },
+                ],
+                totalCost,
+                guaranteedPayout: 1,
+                profit,
+                profitPercent: (profit / totalCost) * 100,
+                confidence:
+                  profit > 0.03 ? "high" : profit > 0.01 ? "medium" : "low",
+              });
+            }
           }
         }
       }

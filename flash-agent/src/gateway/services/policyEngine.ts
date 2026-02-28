@@ -1,7 +1,7 @@
 import type { Platform } from '../../plugin-flash/types/index.ts';
 
 function allowedPlatforms(): Set<Platform> {
-  const raw = String(process.env.FLASH_GATEWAY_ALLOWED_PLATFORMS || 'predictfun,opinion');
+  const raw = String(process.env.FLASH_GATEWAY_ALLOWED_PLATFORMS || 'predictfun,probable,xmarket');
   const parsed = raw
     .split(',')
     .map((s) => s.trim())

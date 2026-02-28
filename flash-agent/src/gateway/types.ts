@@ -50,6 +50,9 @@ export interface BotRecord {
   totalVolume: number;
   activeStrategies: string[];
   status: BotStatus;
+  walletAddress?: string;
+  onChainVerified?: boolean;
+  erc8004AgentId?: number;
 }
 
 export interface ActivityEvent {
@@ -89,7 +92,7 @@ export interface QuoteTokenPayload {
   agentId: string;
   marketId: string;
   marketTitle?: string;
-  platform: 'predictfun' | 'opinion';
+  platform: 'predictfun' | 'opinion' | 'probable' | 'xmarket';
   side: 'YES' | 'NO';
   shares: number;
   quotedPrice: number;

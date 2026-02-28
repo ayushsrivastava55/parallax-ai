@@ -72,6 +72,33 @@ export function ensureBotRegistered(agentId: string, keyId: string): void {
   logger.info({ agentId }, '[BOT_REGISTRY] new bot registered');
 }
 
+export function setBotWalletAddress(
+  agentId: string,
+  walletAddress: string,
+  erc8004AgentId?: number,
+  onChainVerified = false,
+): void {
+  load();
+  const bot = bots.get(agentId);
+  if (!bot) return;
+  bot.walletAddress = walletAddress;
+  bot.onChainVerified = onChainVerified;
+  if (erc8004AgentId !== undefined) bot.erc8004AgentId = erc8004AgentId;
+  persist(bot);
+  logger.info({ agentId, walletAddress, onChainVerified }, '[BOT_REGISTRY] wallet address set');
+}
+
+export function getBotByWallet(walletAddress: string): BotRecord | undefined {
+  load();
+  for (const bot of bots.values()) {
+    if (bot.walletAddress?.toLowerCase() === walletAddress.toLowerCase()) {
+      bot.status = computeStatus(bot.lastSeenAt);
+      return bot;
+    }
+  }
+  return undefined;
+}
+
 export function recordBotTrade(agentId: string, volumeUsd: number): void {
   load();
   const bot = bots.get(agentId);

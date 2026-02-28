@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const platformSchema = z.enum(['predictfun', 'opinion']);
+const platformSchema = z.enum(['predictfun', 'opinion', 'probable', 'xmarket']);
 
 export const listMarketsSchema = z.object({
   platforms: z.array(platformSchema).optional(),
@@ -26,6 +26,8 @@ export const tradeQuoteSchema = z.object({
 export const tradeExecuteSchema = z.object({
   confirmationToken: z.string().min(10),
   clientOrderId: z.string().min(4),
+  signature: z.string().optional(),
+  signerAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
 });
 
 export const positionsListSchema = z.object({
@@ -45,6 +47,13 @@ export const yieldManageSchema = z.object({
   openTradeDemandUsd: z.number().nonnegative().optional(),
 });
 
+/* ── Agent registration ──────────────────────────────────────── */
+
+export const agentRegisterSchema = z.object({
+  walletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  erc8004AgentId: z.number().int().positive().optional(),
+});
+
 /* ── Bot schemas ──────────────────────────────────────────────── */
 
 export const botsListSchema = z.object({
@@ -62,6 +71,7 @@ export const botHeartbeatSchema = z.object({
 
 /* ── Inferred types ───────────────────────────────────────────── */
 
+export type AgentRegisterInput = z.infer<typeof agentRegisterSchema>;
 export type BotsListInput = z.infer<typeof botsListSchema>;
 export type BotActivityInput = z.infer<typeof botActivitySchema>;
 export type BotHeartbeatInput = z.infer<typeof botHeartbeatSchema>;

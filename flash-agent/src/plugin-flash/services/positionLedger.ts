@@ -25,6 +25,7 @@ export interface TradeFillRecord {
   timestamp: string;
   txHash?: string;
   source: "agent_action" | "gateway";
+  agentId?: string;
 }
 
 let appendQueue: Promise<void> = Promise.resolve();
@@ -78,6 +79,7 @@ export async function recordTradeResult(params: {
   marketTitle: string;
   outcomeLabel: string;
   source: "agent_action" | "gateway";
+  agentId?: string;
 }): Promise<void> {
   if (params.trade.filledSize <= 0) return;
   await recordTradeFill({
@@ -94,18 +96,22 @@ export async function recordTradeResult(params: {
     timestamp: params.trade.timestamp || new Date().toISOString(),
     txHash: params.trade.txHash,
     source: params.source,
+    agentId: params.agentId,
   });
 }
 
-export async function readTradeFills(limit = MAX_LEDGER_ROWS): Promise<TradeFillRecord[]> {
+export async function readTradeFills(limit = MAX_LEDGER_ROWS, agentId?: string): Promise<TradeFillRecord[]> {
   try {
     const raw = await readFile(ledgerPath(), "utf8");
     const lines = raw.split("\n").filter(Boolean);
     const selected = lines.length > limit ? lines.slice(lines.length - limit) : lines;
-    return selected
+    let records = selected
       .map(parseRecordLine)
-      .filter((r): r is TradeFillRecord => r !== null)
-      .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+      .filter((r): r is TradeFillRecord => r !== null);
+    if (agentId) {
+      records = records.filter((r) => r.agentId === agentId);
+    }
+    return records.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   } catch {
     return [];
   }
@@ -177,21 +183,19 @@ export function buildPositionsFromFills(fills: TradeFillRecord[]): Position[] {
   return out.sort((a, b) => a.marketTitle.localeCompare(b.marketTitle));
 }
 
-export async function getLedgerPositions(): Promise<Position[]> {
-  const fills = await readTradeFills();
+export async function getLedgerPositions(agentId?: string): Promise<Position[]> {
+  const fills = await readTradeFills(MAX_LEDGER_ROWS, agentId);
   return buildPositionsFromFills(fills);
 }
 
 export async function refreshLivePrices(
   positions: Position[],
-  services: {
-    predictfun: MarketConnector;
-    opinion: MarketConnector;
-  }
+  services: Record<string, MarketConnector>,
 ): Promise<Position[]> {
   const refreshed = await Promise.all(
     positions.map(async (position) => {
-      const svc = position.platform === "predictfun" ? services.predictfun : services.opinion;
+      const svc = services[position.platform];
+      if (!svc) return position;
       try {
         const prices = await svc.getMarketPrice(position.marketId);
         const livePrice = /^yes$/i.test(position.outcomeLabel) ? prices.yes : prices.no;
