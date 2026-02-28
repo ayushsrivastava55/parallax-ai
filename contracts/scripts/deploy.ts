@@ -23,7 +23,7 @@ async function main() {
     deployer.address,
     "prediction market trader",
     "cross-platform arbitrage, deep research, statistical analysis",
-    "https://flash-agent.example.com/metadata.json" // Replace with IPFS URI
+    "https://eyebalz.xyz/metadata.json" // Replace with IPFS URI
   );
   await tx.wait();
 

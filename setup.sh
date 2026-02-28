@@ -27,8 +27,8 @@ if ! command -v tsx &>/dev/null; then
 fi
 
 # 2. Install dependencies
-echo "Installing flash-agent dependencies..."
-cd flash-agent && bun install && cd ..
+echo "Installing server dependencies..."
+cd server && bun install && cd ..
 
 echo "Installing frontend dependencies..."
 cd frontend && bun install && cd ..
@@ -41,16 +41,17 @@ cd frontend && bun run build && cd ..
 mkdir -p logs
 
 # 5. Remind about .env
-if [ ! -f flash-agent/.env ]; then
+if [ ! -f server/.env ]; then
   echo ""
-  echo "⚠ Missing flash-agent/.env — copy it from your local machine:"
-  echo "  scp flash-agent/.env user@your-vps:$(pwd)/flash-agent/.env"
+  echo "⚠ Missing server/.env — copy it from your local machine:"
+  echo "  scp server/.env user@your-vps:$(pwd)/server/.env"
   echo ""
   exit 1
 fi
 
 # 6. Start with PM2
 echo "Starting Flash Gateway with PM2..."
+pm2 delete flash-gateway 2>/dev/null || true
 pm2 start ecosystem.config.cjs
 pm2 save
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, memo } from 'react';
 import { Link } from 'react-router-dom';
-import { useEliza, type Message } from '../hooks/useEliza';
+import { useChat, type Message } from '../hooks/useChat';
 import { parseAgentResponse, type ParsedBlock } from '../lib/parseAgentResponse';
 import AgentResponse from '../components/cards/AgentResponse';
 
@@ -97,7 +97,7 @@ const AssistantMessage = memo(function AssistantMessage({
 /* ── Chat page ───────────────────────────────────── */
 
 export default function Chat() {
-  const { agentName, messages, send, phase, connected, streamRef } = useEliza();
+  const { agentName, messages, send, phase, connected, streamRef } = useChat();
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 

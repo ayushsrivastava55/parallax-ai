@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'flash-gateway',
-      cwd: './flash-agent',
+      cwd: './server',
       script: 'npx',
       args: 'tsx src/server.ts',
       env: {

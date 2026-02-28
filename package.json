@@ -4,9 +4,10 @@
   "version": "0.1.0",
   "description": "Flash — AI agent for BNB Chain prediction markets with cross-platform arbitrage",
   "scripts": {
-    "dev": "cd flash-agent && bun x @elizaos/cli dev",
-    "start": "cd flash-agent && bun x @elizaos/cli start",
-    "build": "cd flash-agent && bun run build",
+    "dev": "cd server && npx tsx src/server.ts",
+    "start": "cd server && npx tsx src/server.ts",
+    "build": "cd frontend && bun run build",
+    "build:agent": "cd server && bun run build",
     "compile": "cd contracts && npx hardhat compile",
     "deploy:testnet": "cd contracts && npx hardhat run scripts/deploy.ts --network bscTestnet"
   }

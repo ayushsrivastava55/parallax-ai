@@ -45,7 +45,7 @@ async function main() {
 
   // 5. Register agent in IdentityRegistry (use explicit overload for ethers v6)
   console.log("\nRegistering Flash agent in IdentityRegistry...");
-  const agentURI = "https://flash-agent.example.com/erc8004-metadata.json";
+  const agentURI = "https://eyebalz.xyz/erc8004-metadata.json";
   const registerTx = await identityRegistry["register(string)"](agentURI);
   const registerReceipt = await registerTx.wait();
 
@@ -79,7 +79,7 @@ async function main() {
     deployer.address,
     "prediction market trader",
     "cross-platform arbitrage, deep research, statistical analysis",
-    "https://flash-agent.example.com/metadata.json"
+    "https://eyebalz.xyz/metadata.json"
   );
   await mintTx.wait();
   console.log("  NFA minted! Token ID: 0");
@@ -116,7 +116,7 @@ async function main() {
   console.log(`\nDeployment saved to: ${deploymentPath}`);
 
   // 10. Print .env-ready block
-  console.log("\n═══ Copy-paste into flash-agent/.env ═══\n");
+  console.log("\n═══ Copy-paste into server/.env ═══\n");
   console.log(`ERC8004_ENABLED=true`);
   console.log(`ERC8004_IDENTITY_REGISTRY=${identityAddr}`);
   console.log(`ERC8004_REPUTATION_REGISTRY=${reputationAddr}`);

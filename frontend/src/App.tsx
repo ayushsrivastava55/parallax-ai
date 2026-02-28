@@ -410,10 +410,10 @@ function Footer() {
         lineHeight: 2,
       }}>
         Built with{' '}
-        {['ElizaOS', 'Predict.fun', 'Opinion.trade', 'BAP-578', 'Claude', 'BNB Chain'].map((t, i) => (
+        {['Predict.fun', 'Probable Markets', 'ERC-8004', 'MiniMax', 'BNB Chain'].map((t, i) => (
           <span key={i}>
             <span style={{ color: 'var(--t2)' }}>{t}</span>
-            {i < 5 ? <span style={{ color: 'var(--line-light)', margin: '0 8px' }}>/</span> : ''}
+            {i < 4 ? <span style={{ color: 'var(--line-light)', margin: '0 8px' }}>/</span> : ''}
           </span>
         ))}
       </div>

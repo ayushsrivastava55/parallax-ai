@@ -7,7 +7,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - flash-agent/.env
+      - server/.env
     environment:
       - NODE_ENV=production
       - PORT=3000
