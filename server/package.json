@@ -27,6 +27,7 @@
     "dist"
   ],
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@openai/agents": "^0.5.2",
     "@predictdotfun/sdk": "^1.3.0",
     "@prob/core": "^0.3.0",

@@ -61,3 +61,4 @@
 {"agentId":"unsigned-agent","keyId":"unsigned","registeredAt":"2026-02-27T23:22:34.753Z","lastSeenAt":"2026-02-28T06:09:33.918Z","lastHeartbeatAt":null,"totalRequests":53,"totalTrades":0,"totalVolume":0,"activeStrategies":[],"status":"active"}
 {"agentId":"unsigned-agent","keyId":"unsigned","registeredAt":"2026-02-27T23:22:34.753Z","lastSeenAt":"2026-02-28T06:10:07.020Z","lastHeartbeatAt":null,"totalRequests":54,"totalTrades":0,"totalVolume":0,"activeStrategies":[],"status":"active"}
 {"agentId":"unsigned-agent","keyId":"unsigned","registeredAt":"2026-02-27T23:22:34.753Z","lastSeenAt":"2026-02-28T06:10:09.249Z","lastHeartbeatAt":null,"totalRequests":55,"totalTrades":0,"totalVolume":0,"activeStrategies":[],"status":"active"}
+{"agentId":"unsigned-agent","keyId":"unsigned","registeredAt":"2026-02-27T23:22:34.753Z","lastSeenAt":"2026-02-28T08:38:52.126Z","lastHeartbeatAt":null,"totalRequests":56,"totalTrades":0,"totalVolume":0,"activeStrategies":[],"status":"active"}

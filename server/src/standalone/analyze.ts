@@ -1,6 +1,7 @@
-import { Agent, run, MCPServerStdio } from '@openai/agents';
+import { Agent, run, tool } from '@openai/agents';
 import { OpenAIChatCompletionsModel } from '@openai/agents';
 import OpenAI from 'openai';
+import { z } from 'zod';
 import { PredictFunService } from '../plugin-flash/services/predictfun.ts';
 import { OpinionService } from '../plugin-flash/services/opinion.ts';
 import { ArbEngine } from '../plugin-flash/services/arbEngine.ts';
@@ -20,25 +21,49 @@ function getResearchModel(): OpenAIChatCompletionsModel {
   return new OpenAIChatCompletionsModel(client, RESEARCH_MODEL);
 }
 
-/** Create MiniMax Search MCP server (stdio transport) */
-function createSearchServer(): MCPServerStdio {
-  const minimaxKey = process.env.MINIMAX_API_KEY || '';
-  return new MCPServerStdio({
-    name: 'minimax-search',
-    command: 'uvx',
-    args: ['--from', 'git+https://github.com/MiniMax-AI/minimax_search.git', 'minimax-search'],
-    env: {
-      // minimax_search_browse.py reads MINIMAX_API_KEY but the python openai
-      // SDK also validates OPENAI_API_KEY at import time, so set both.
-      MINIMAX_API_KEY: minimaxKey,
-      OPENAI_API_KEY: minimaxKey,
-      SERPER_API_KEY: process.env.SERPER_API_KEY || '',
-      JINA_API_KEY: process.env.JINA_API_KEY || '',
-    },
-    cacheToolsList: true,
-    clientSessionTimeoutSeconds: 120,
-  });
-}
+/** Web search via Serper Google Search API */
+const webSearch = tool({
+  name: 'search',
+  description: 'Search the web for recent information using Google Search.',
+  parameters: z.object({ query: z.string().describe('Search query') }),
+  execute: async ({ query }) => {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': process.env.SERPER_API_KEY || '',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ q: query, num: 5 }),
+    });
+    if (!res.ok) throw new Error(`Serper error ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    const results = (data.organic || []).slice(0, 5).map((r: any) => ({
+      title: r.title,
+      link: r.link,
+      snippet: r.snippet,
+    }));
+    return JSON.stringify(results);
+  },
+});
+
+/** Browse a URL via Jina Reader API */
+const browse = tool({
+  name: 'browse',
+  description: 'Read the content of a web page URL and return its text.',
+  parameters: z.object({ url: z.string().describe('URL to read') }),
+  execute: async ({ url }) => {
+    const res = await fetch(`https://r.jina.ai/${url}`, {
+      headers: {
+        Accept: 'text/plain',
+        Authorization: `Bearer ${process.env.JINA_API_KEY || ''}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`Jina error ${res.status}: ${await res.text()}`);
+    const text = await res.text();
+    return text.slice(0, 5000);
+  },
+});
 
 export interface SearchSource {
   title: string;
@@ -234,16 +259,12 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     });
   }
 
-  // Step 4: Deep research via Agent + MiniMax Search MCP
+  // Step 4: Deep research via Agent + direct Serper/Jina tools
   const yesPrice = targetMarket.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes')?.price ?? 0.5;
 
-  const searchServer = createSearchServer();
-  try {
-    await searchServer.connect();
-
-    const researchAgent = new Agent({
-      name: 'market-researcher',
-      instructions: `You are an expert prediction market research analyst with web search capabilities.
+  const researchAgent = new Agent({
+    name: 'market-researcher',
+    instructions: `You are an expert prediction market research analyst with web search capabilities.
 
 Your job is to research a prediction market and provide an evidence-based assessment.
 
@@ -270,11 +291,11 @@ After completing your research, respond with ONLY this JSON:
 }
 
 Respond with ONLY the JSON object after you have completed all your research. No markdown, no explanation.`,
-      model: getResearchModel(),
-      mcpServers: [searchServer],
-    });
+    model: getResearchModel(),
+    tools: [webSearch, browse],
+  });
 
-    const researchPrompt = `Research this prediction market and provide your evidence-based assessment.
+  const researchPrompt = `Research this prediction market and provide your evidence-based assessment.
 
 Market: "${targetMarket.title}"
 Description: "${targetMarket.description}"
@@ -284,79 +305,76 @@ User thesis: "${query}"
 
 Start by searching for recent relevant information, then provide your JSON assessment.`;
 
-    const researchResult = await run(researchAgent, researchPrompt, { maxTurns: 10 });
-    const parsed = parseResearchJson(researchResult.finalOutput);
+  const researchResult = await run(researchAgent, researchPrompt, { maxTurns: 10 });
+  const parsed = parseResearchJson(researchResult.finalOutput);
 
-    if (!parsed || !Array.isArray(parsed.supporting) || typeof parsed.modelProbability !== 'number') {
-      throw new Error('Research model output invalid/unavailable; analysis aborted.');
-    }
-
-    const research = {
-      supporting: parsed.supporting as string[],
-      contradicting: Array.isArray(parsed.contradicting) ? (parsed.contradicting as string[]) : [],
-      modelProbability: parsed.modelProbability as number,
-      riskScore: typeof parsed.riskScore === 'number' ? parsed.riskScore : 5,
-      confidence: typeof parsed.confidence === 'string' ? parsed.confidence : 'Medium',
-      reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
-      sources: Array.isArray(parsed.sources)
-        ? (parsed.sources as SearchSource[]).map((s) => ({
-            title: String(s.title || ''),
-            url: String(s.url || ''),
-            snippet: String(s.snippet || ''),
-          }))
-        : [],
-    };
-
-    // Step 5: Statistical evaluation
-    const modelProb = research.modelProbability / 100;
-    const edge = modelProb - yesPrice;
-    const expectedValue =
-      edge > 0
-        ? modelProb * (1 - yesPrice) - (1 - modelProb) * yesPrice
-        : -(modelProb * yesPrice - (1 - modelProb) * (1 - yesPrice));
-
-    // Step 6: Arb detection
-    let arbOpps: ArbOpportunity[] = [];
-    try {
-      arbOpps = await arbEngine.scanAll();
-      arbOpps = arbOpps.filter(
-        (a) =>
-          a.marketTitle.toLowerCase().includes(targetMarket!.title.toLowerCase().split(' ')[0]) ||
-          targetMarket!.title.toLowerCase().includes(a.marketTitle.toLowerCase().split(' ')[0]),
-      );
-    } catch {
-      // No arb data
-    }
-
-    // Recommendation
-    let recommendation: string;
-    const bestPlatform = crossPlatformPrices.sort((a, b) => a.yesPrice - b.yesPrice)[0];
-    if (edge > 0.05) {
-      recommendation = `Buy YES on ${bestPlatform?.platform === 'predictfun' ? 'Predict.fun' : 'Opinion'} at $${(bestPlatform?.yesPrice ?? yesPrice).toFixed(2)} (best price, +${(edge * 100).toFixed(1)}% edge)`;
-    } else if (edge < -0.05) {
-      recommendation = `Buy NO — model suggests YES is overpriced by ${(Math.abs(edge) * 100).toFixed(1)}%`;
-    } else {
-      recommendation = `Avoid — edge is too small (${(edge * 100).toFixed(1)}%) for the risk level`;
-    }
-
-    return {
-      market: targetMarket,
-      crossPlatformPrices,
-      modelProbability: modelProb,
-      edge,
-      expectedValue,
-      confidence: research.confidence,
-      riskScore: research.riskScore,
-      supporting: research.supporting,
-      contradicting: research.contradicting,
-      recommendation,
-      arbOpportunities: arbOpps,
-      sources: research.sources,
-      reasoning: research.reasoning,
-    };
-  } finally {
-    await searchServer.close().catch(() => {});
+  if (!parsed || !Array.isArray(parsed.supporting) || typeof parsed.modelProbability !== 'number') {
+    throw new Error('Research model output invalid/unavailable; analysis aborted.');
   }
+
+  const research = {
+    supporting: parsed.supporting as string[],
+    contradicting: Array.isArray(parsed.contradicting) ? (parsed.contradicting as string[]) : [],
+    modelProbability: parsed.modelProbability as number,
+    riskScore: typeof parsed.riskScore === 'number' ? parsed.riskScore : 5,
+    confidence: typeof parsed.confidence === 'string' ? parsed.confidence : 'Medium',
+    reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
+    sources: Array.isArray(parsed.sources)
+      ? (parsed.sources as SearchSource[]).map((s) => ({
+          title: String(s.title || ''),
+          url: String(s.url || ''),
+          snippet: String(s.snippet || ''),
+        }))
+      : [],
+  };
+
+  // Step 5: Statistical evaluation
+  const modelProb = research.modelProbability / 100;
+  const edge = modelProb - yesPrice;
+  const expectedValue =
+    edge > 0
+      ? modelProb * (1 - yesPrice) - (1 - modelProb) * yesPrice
+      : -(modelProb * yesPrice - (1 - modelProb) * (1 - yesPrice));
+
+  // Step 6: Arb detection
+  let arbOpps: ArbOpportunity[] = [];
+  try {
+    arbOpps = await arbEngine.scanAll();
+    arbOpps = arbOpps.filter(
+      (a) =>
+        a.marketTitle.toLowerCase().includes(targetMarket!.title.toLowerCase().split(' ')[0]) ||
+        targetMarket!.title.toLowerCase().includes(a.marketTitle.toLowerCase().split(' ')[0]),
+    );
+  } catch {
+    // No arb data
+  }
+
+  // Recommendation
+  let recommendation: string;
+  const bestPlatform = crossPlatformPrices.sort((a, b) => a.yesPrice - b.yesPrice)[0];
+  if (edge > 0.05) {
+    recommendation = `Buy YES on ${bestPlatform?.platform === 'predictfun' ? 'Predict.fun' : 'Opinion'} at $${(bestPlatform?.yesPrice ?? yesPrice).toFixed(2)} (best price, +${(edge * 100).toFixed(1)}% edge)`;
+  } else if (edge < -0.05) {
+    recommendation = `Buy NO — model suggests YES is overpriced by ${(Math.abs(edge) * 100).toFixed(1)}%`;
+  } else {
+    recommendation = `Avoid — edge is too small (${(edge * 100).toFixed(1)}%) for the risk level`;
+  }
+
+  return {
+    market: targetMarket,
+    crossPlatformPrices,
+    modelProbability: modelProb,
+    edge,
+    expectedValue,
+    confidence: research.confidence,
+    riskScore: research.riskScore,
+    supporting: research.supporting,
+    contradicting: research.contradicting,
+    recommendation,
+    arbOpportunities: arbOpps,
+    sources: research.sources,
+    reasoning: research.reasoning,
+  };
 }
 
 export { formatAnalysis };

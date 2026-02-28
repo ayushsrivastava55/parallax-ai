@@ -60,3 +60,4 @@
 {"id":"bf517cab-19ce-4050-9c8c-a579a7991f0d","agentId":"unsigned-agent","type":"arb.scan","timestamp":"2026-02-28T06:09:33.919Z","details":{}}
 {"id":"1dc2ee78-572e-4b75-82f3-a1fffaab1734","agentId":"unsigned-agent","type":"trades.quote","timestamp":"2026-02-28T06:10:07.022Z","details":{}}
 {"id":"d3f1e5ef-3425-4b26-8f5e-1ce9d14c7345","agentId":"unsigned-agent","type":"trades.execute","timestamp":"2026-02-28T06:10:09.249Z","details":{}}
+{"id":"47055078-a33c-4d84-bc9e-aa42eeef4246","agentId":"unsigned-agent","type":"markets.analyze","timestamp":"2026-02-28T08:38:52.140Z","details":{}}
