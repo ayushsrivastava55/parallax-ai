@@ -1,6 +1,6 @@
 import { HeroStats } from '../components/dashboard/HeroStats.tsx';
 import { ActivityFeed } from '../components/dashboard/ActivityFeed.tsx';
-import { BotGrid } from '../components/dashboard/BotGrid.tsx';
+import { AgentGrid } from '../components/dashboard/AgentGrid.tsx';
 
 export default function Dashboard() {
   return (
@@ -10,7 +10,7 @@ export default function Dashboard() {
       </h1>
       <HeroStats />
       <ActivityFeed />
-      <BotGrid />
+      <AgentGrid />
     </div>
   );
 }

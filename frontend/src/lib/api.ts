@@ -1,4 +1,4 @@
-import type { BotRecord, BotStats, ActivityEvent, PlatformStats } from './constants.ts';
+import type { AgentRecord, AgentStats, ActivityEvent, PlatformStats } from './constants.ts';
 
 const API_BASE = '/api/v1';
 
@@ -13,15 +13,15 @@ async function get<T>(path: string): Promise<T> {
 
 export const platformStats = () => get<PlatformStats>('/platform/stats');
 
-/* ── Bots ─────────────────────────────────────────────────────── */
+/* ── Agents ───────────────────────────────────────────────────── */
 
-export const listBots = () => get<{ bots: BotRecord[]; total: number }>('/bots');
+export const listAgents = () => get<{ bots: AgentRecord[]; total: number }>('/bots');
 
-export const getBot = (id: string) => get<BotRecord>(`/bots/${id}`);
+export const getAgent = (id: string) => get<AgentRecord>(`/bots/${id}`);
 
-export const getBotStats = (id: string) => get<BotStats>(`/bots/${id}/stats`);
+export const getAgentStats = (id: string) => get<AgentStats>(`/bots/${id}/stats`);
 
-export const getBotActivity = (id: string, limit = 50) =>
+export const getAgentActivity = (id: string, limit = 50) =>
   get<{ activity: ActivityEvent[]; total: number }>(`/bots/${id}/activity?limit=${limit}`);
 
 /* ── Activity ─────────────────────────────────────────────────── */

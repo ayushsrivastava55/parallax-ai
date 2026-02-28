@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import type { BotRecord } from '../../lib/constants.ts';
+import type { AgentRecord } from '../../lib/constants.ts';
 import { STATUS_COLORS } from '../../lib/constants.ts';
 import { Badge } from '../shared/Badge.tsx';
 import { Timestamp } from '../shared/Timestamp.tsx';
@@ -31,26 +31,26 @@ const mono: CSSProperties = {
   color: 'var(--t2)',
 };
 
-export function BotCard({ bot }: { bot: BotRecord }) {
+export function AgentCard({ agent }: { agent: AgentRecord }) {
   return (
-    <Link to={`/bots/${bot.agentId}`} style={card}>
+    <Link to={`/agents/${agent.agentId}`} style={card}>
       <div style={row}>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 14, color: 'var(--t1)' }}>
-          {shortId(bot.agentId)}
+          {shortId(agent.agentId)}
         </span>
-        <Badge label={bot.status} color={STATUS_COLORS[bot.status]} />
+        <Badge label={agent.status} color={STATUS_COLORS[agent.status]} />
       </div>
       <div style={row}>
-        <span style={mono}>{bot.totalTrades} trades</span>
-        <span style={mono}>{formatUsd(bot.totalVolume)}</span>
+        <span style={mono}>{agent.totalTrades} trades</span>
+        <span style={mono}>{formatUsd(agent.totalVolume)}</span>
       </div>
       <div style={row}>
-        <span style={mono}>{bot.totalRequests} requests</span>
-        <Timestamp iso={bot.lastSeenAt} />
+        <span style={mono}>{agent.totalRequests} requests</span>
+        <Timestamp iso={agent.lastSeenAt} />
       </div>
-      {bot.activeStrategies.length > 0 && (
+      {agent.activeStrategies.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {bot.activeStrategies.map((s) => (
+          {agent.activeStrategies.map((s) => (
             <span
               key={s}
               style={{

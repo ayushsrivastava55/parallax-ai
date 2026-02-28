@@ -129,25 +129,23 @@ curl https://eyebalz.xyz/api/v1/system/connectors
 
 ---
 
-## 4. Agent Registration (Non-Custodial)
+## 4. Agent Registration (Custodial)
 
 **`POST /v1/bots/register`**
 
-Registers a bot's wallet address with the gateway. The gateway never holds private keys — bots own their wallets and sign their own orders.
+Registers the agent with the gateway. **The gateway generates everything automatically** — wallet, ERC-8004 identity, and FlashAgent NFA token. The agent never needs to create wallets, manage private keys, or call smart contracts.
 
 ### Request Body
 
 ```json
 {
-  "walletAddress": "0x1234567890abcdef1234567890abcdef12345678",
-  "erc8004AgentId": 42
+  "persona": "my-trading-agent"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `walletAddress` | string | Yes | Bot's EOA wallet address (0x-prefixed, 40 hex chars) |
-| `erc8004AgentId` | number | No | On-chain ERC-8004 agent token ID. If provided, gateway verifies `ownerOf(agentId) == walletAddress` |
+| `persona` | string | No | Display name for the agent (max 200 chars). Auto-generated if omitted. |
 
 ### Response (200)
 
@@ -155,58 +153,47 @@ Registers a bot's wallet address with the gateway. The gateway never holds priva
 {
   "ok": true,
   "agentId": "agent_abc123",
-  "walletAddress": "0x1234567890abcdef1234567890abcdef12345678",
+  "walletAddress": "0xGeneratedByGateway...",
   "erc8004AgentId": 42,
+  "nfaTokenId": 1,
   "onChainVerified": true
 }
 ```
 
-### Self-Service Registration Flow
+### How It Works (Custodial Model)
 
-1. Bot creates its own EOA wallet: `ethers.Wallet.createRandom()`
-2. Bot funds wallet with BNB (for gas) and USDC (for trading)
-3. (Optional) Bot registers on-chain: `identityRegistry.register(metadataURI)` → gets ERC-721 agentId
-4. Bot calls `POST /v1/bots/register` with wallet address and optional agentId
-5. Gateway verifies on-chain ownership (if agentId provided) and stores the mapping
-6. Bot can now sign orders locally and relay through the gateway
+1. Agent calls `POST /v1/bots/register` — **that's it, one HTTP call**
+2. Gateway generates a fresh EOA wallet for the agent
+3. Gateway registers the agent on ERC-8004 IdentityRegistry (on-chain)
+4. Gateway mints a FlashAgent NFA token (on-chain)
+5. Gateway stores the encrypted private key server-side
+6. All subsequent trades use the agent's dedicated wallet — the gateway signs on behalf of the agent
 
-### Trade Execution with Bot-Signed Orders
+**Agents never need to:**
+- Generate wallets or manage private keys
+- Call smart contracts or blockchain RPCs
+- Fund wallets with gas (the gateway operator handles this)
+- Sign EIP-712 messages or interact with protocols
 
-After registration, bots can sign orders locally and relay them:
+**Trust model:** The gateway operator holds agent keys (like Coinbase or Binance hold user keys). All activity is transparently recorded on-chain via ERC-8004, making it fully auditable.
 
-```bash
-POST /v1/trades/execute
-{
-  "confirmationToken": "tok_from_quote",
-  "clientOrderId": "my-order-001",
-  "signature": "0x...",
-  "signerAddress": "0xBotAddr"
-}
-```
+### Full Agent Onboarding Flow
 
-The gateway relays the pre-signed order to the platform without needing the bot's private key.
+1. **Register** — `POST /v1/bots/register` (gateway generates wallet + on-chain identity)
+2. **Setup proxy** (Probable only) — `POST /v1/bots/setup-proxy` (gateway deploys Gnosis Safe for agent)
+3. **Verify proxy** (Probable only) — `GET /v1/bots/proxy-status` (check deployed + funded)
+4. **Trade** — `POST /v1/trades/quote` + `POST /v1/trades/execute`
+5. **Heartbeat** — `POST /v1/bots/heartbeat` (record autonomous loop completion)
 
-Unregistered bots fall back to the global gateway wallet for backward compatibility.
-
-### Full Bot Setup Flow (including Probable)
-
-For bots that want to trade on Probable Markets, the full onboarding flow is:
-
-1. **Register** — `POST /v1/bots/register` with wallet address and optional ERC-8004 agentId
-2. **Setup proxy** — `POST /v1/bots/setup-proxy` to deploy a Gnosis Safe proxy wallet for Probable
-3. **Fund proxy** — Transfer USDT to the proxy address returned in step 2
-4. **Verify** — `GET /v1/bots/proxy-status` to confirm proxy is deployed, funded, and approvals are OK
-5. **Trade** — Call `/v1/trades/quote` and `/v1/trades/execute` with `"platform": "probable"`
-
-Steps 2–4 are only required for Probable. Predict.fun works immediately after registration.
+Steps 2-3 are only needed for Probable Markets. Predict.fun works immediately after step 1.
 
 ### Error Codes
 
 | Code | HTTP | Meaning |
 |------|------|---------|
 | AUTH_INVALID | 401 | Missing or invalid authentication credentials |
-| VALIDATION_ERROR | 400 | Invalid wallet address format or missing fields |
-| OWNERSHIP_MISMATCH | 403 | On-chain `ownerOf(agentId)` does not match provided wallet |
+| VALIDATION_ERROR | 400 | Invalid request body |
+| WALLET_NOT_CONFIGURED | 400 | Agent has no wallet — call `POST /v1/bots/register` first |
 
 ---
 

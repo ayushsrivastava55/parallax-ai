@@ -51,8 +51,10 @@ export interface BotRecord {
   activeStrategies: string[];
   status: BotStatus;
   walletAddress?: string;
+  encryptedPrivateKey?: string;
   onChainVerified?: boolean;
   erc8004AgentId?: number;
+  nfaTokenId?: number;
 }
 
 export interface ActivityEvent {

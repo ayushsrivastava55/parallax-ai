@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { BotRecord, BotStats } from '../../lib/constants.ts';
+import type { AgentRecord, AgentStats } from '../../lib/constants.ts';
 import { STATUS_COLORS } from '../../lib/constants.ts';
 import { Badge } from '../shared/Badge.tsx';
 import { StatCard } from '../shared/StatCard.tsx';
@@ -19,20 +19,20 @@ const grid: CSSProperties = {
   marginBottom: 24,
 };
 
-export function BotProfile({ bot, stats }: { bot: BotRecord; stats: BotStats | null }) {
+export function AgentProfile({ agent, stats }: { agent: AgentRecord; stats: AgentStats | null }) {
   return (
     <div>
       <div style={header}>
-        <span style={{ fontFamily: 'var(--mono)', fontSize: 20, color: 'var(--t1)' }}>{bot.agentId}</span>
-        <Badge label={bot.status} color={STATUS_COLORS[bot.status]} />
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 20, color: 'var(--t1)' }}>{agent.agentId}</span>
+        <Badge label={agent.status} color={STATUS_COLORS[agent.status]} />
       </div>
       <div style={grid}>
-        <StatCard label="Trades" value={stats ? String(stats.totalTrades) : String(bot.totalTrades)} />
-        <StatCard label="Volume" value={formatUsd(stats?.totalVolume ?? bot.totalVolume)} />
+        <StatCard label="Trades" value={stats ? String(stats.totalTrades) : String(agent.totalTrades)} accent="var(--gold)" />
+        <StatCard label="Volume" value={formatUsd(stats?.totalVolume ?? agent.totalVolume)} accent="var(--cyan)" />
         <StatCard label="Win Rate" value={stats ? formatPercent(stats.winRate) : '-'} accent="var(--green)" />
         <StatCard label="P&L" value={stats ? formatUsd(stats.totalPnl) : '-'} accent={stats && stats.totalPnl >= 0 ? 'var(--green)' : 'var(--red)'} />
         <StatCard label="Heartbeats" value={stats ? String(stats.heartbeatsReceived) : '-'} />
-        <StatCard label="Last Seen" value={timeAgo(bot.lastSeenAt)} />
+        <StatCard label="Last Seen" value={timeAgo(agent.lastSeenAt)} />
       </div>
     </div>
   );

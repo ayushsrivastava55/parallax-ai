@@ -50,8 +50,7 @@ export const yieldManageSchema = z.object({
 /* ── Agent registration ──────────────────────────────────────── */
 
 export const agentRegisterSchema = z.object({
-  walletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
-  erc8004AgentId: z.number().int().positive().optional(),
+  persona: z.string().max(200).optional(),
 });
 
 /* ── Bot schemas ──────────────────────────────────────────────── */

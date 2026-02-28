@@ -48,9 +48,9 @@ interface MarketTableCardProps {
 
 function parsePlatformColor(name: string): string {
   const lower = name.toLowerCase();
-  if (lower.includes('predict')) return 'var(--green)';
-  if (lower.includes('opinion')) return 'var(--gold)';
-  if (lower.includes('polymarket')) return 'var(--cyan)';
+  if (lower.includes('predict')) return 'var(--cyan)';
+  if (lower.includes('probable')) return 'var(--gold)';
+  if (lower.includes('venus')) return 'var(--green)';
   return 'var(--t2)';
 }
 

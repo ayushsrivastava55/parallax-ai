@@ -2,13 +2,15 @@
 
 ## Mandatory Rules
 
-1. Do not call protocol APIs directly (Predict.fun, Probable, chain contracts).
-2. Use Flash Gateway endpoints only (`https://eyebalz.xyz/api/v1`).
-3. Do not execute trades without a valid `confirmationToken`.
-4. Always send `Idempotency-Key` on `trades/execute`.
-5. Never leak API secrets, signing secrets, or private keys.
-6. Always enforce stop-loss limits (close position if value drops 30% from entry).
-7. Verify proxy wallet is deployed (`GET /v1/bots/proxy-status`) before trading on Probable.
+1. Do not call protocol APIs directly (Predict.fun, Probable, Venus, chain contracts, blockchain RPCs).
+2. Use Flash Gateway HTTP endpoints only (`https://eyebalz.xyz/api/v1`).
+3. **Never use, generate, or request private keys.** The gateway manages all wallets and signing. If you see `WALLET_NOT_CONFIGURED`, call `POST /v1/bots/register` — do NOT set `BNB_PRIVATE_KEY` or create wallets locally.
+4. **Register before trading.** Call `POST /v1/bots/register` before any other operation. This is idempotent.
+5. Do not execute trades without a valid `confirmationToken`.
+6. Always send `Idempotency-Key` on `trades/execute`.
+7. Never leak API secrets or signing secrets.
+8. Always enforce stop-loss limits (close position if value drops 30% from entry).
+9. Verify proxy wallet is deployed (`GET /v1/bots/proxy-status`) before trading on Probable. If not deployed, call `POST /v1/bots/setup-proxy`.
 
 ## Autonomous Mode Rules
 

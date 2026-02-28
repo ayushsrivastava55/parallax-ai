@@ -2,11 +2,11 @@ import { useParams, Link } from 'react-router-dom';
 import { STRATEGIES } from '../lib/constants.ts';
 import { SkillViewer } from '../components/skills/SkillViewer.tsx';
 import { EmptyState } from '../components/shared/EmptyState.tsx';
-import { useBots } from '../hooks/useBots.ts';
-import { BotCard } from '../components/bots/BotCard.tsx';
+import { useAgents } from '../hooks/useAgents.ts';
+import { AgentCard } from '../components/agents/AgentCard.tsx';
 import type { CSSProperties } from 'react';
 
-const botGrid: CSSProperties = {
+const agentGrid: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
   gap: 16,
@@ -16,11 +16,11 @@ const botGrid: CSSProperties = {
 export default function StrategyDetail() {
   const { strategyId } = useParams<{ strategyId: string }>();
   const strategy = STRATEGIES.find((s) => s.id === strategyId);
-  const { data: bots } = useBots();
+  const { data: agents } = useAgents();
 
   if (!strategy) return <EmptyState title="Strategy not found" />;
 
-  const botsRunning = (bots ?? []).filter((b) => b.activeStrategies.includes(strategy.id));
+  const agentsRunning = (agents ?? []).filter((a) => a.activeStrategies.includes(strategy.id));
 
   return (
     <div>
@@ -38,13 +38,13 @@ export default function StrategyDetail() {
         {strategy.description}
       </p>
 
-      {botsRunning.length > 0 && (
+      {agentsRunning.length > 0 && (
         <>
           <h2 style={{ fontFamily: 'var(--mono)', fontSize: 13, textTransform: 'uppercase', color: 'var(--t2)', marginBottom: 12 }}>
-            Bots Running This Strategy
+            Agents Running This Strategy
           </h2>
-          <div style={botGrid}>
-            {botsRunning.map((b) => <BotCard key={b.agentId} bot={b} />)}
+          <div style={agentGrid}>
+            {agentsRunning.map((a) => <AgentCard key={a.agentId} agent={a} />)}
           </div>
         </>
       )}

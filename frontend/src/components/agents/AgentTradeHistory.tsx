@@ -32,7 +32,7 @@ const row: CSSProperties = {
   alignItems: 'center',
 };
 
-export function BotTradeHistory({ activity }: { activity: ActivityEvent[] }) {
+export function AgentTradeHistory({ activity }: { activity: ActivityEvent[] }) {
   const trades = activity.filter((e) => e.type === 'trades.execute' || e.type === 'trades.quote');
 
   return (

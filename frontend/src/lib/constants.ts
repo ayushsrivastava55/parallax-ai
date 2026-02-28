@@ -1,8 +1,8 @@
 /* ── Types (mirrors gateway/types.ts for frontend) ────────────── */
 
-export type BotStatus = 'active' | 'idle' | 'stale';
+export type AgentStatus = 'active' | 'idle' | 'stale';
 
-export interface BotRecord {
+export interface AgentRecord {
   agentId: string;
   keyId: string;
   registeredAt: string;
@@ -12,7 +12,7 @@ export interface BotRecord {
   totalTrades: number;
   totalVolume: number;
   activeStrategies: string[];
-  status: BotStatus;
+  status: AgentStatus;
 }
 
 export interface ActivityEvent {
@@ -23,7 +23,7 @@ export interface ActivityEvent {
   details: Record<string, unknown>;
 }
 
-export interface BotStats {
+export interface AgentStats {
   agentId: string;
   totalTrades: number;
   successfulTrades: number;
@@ -99,7 +99,7 @@ export const SKILL_FILES = [
 
 /* ── Status colors ────────────────────────────────────────────── */
 
-export const STATUS_COLORS: Record<BotStatus, string> = {
+export const STATUS_COLORS: Record<AgentStatus, string> = {
   active: '#4ade80',
   idle: '#F0B90B',
   stale: '#f87171',

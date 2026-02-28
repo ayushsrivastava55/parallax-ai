@@ -54,13 +54,13 @@ export function ActivityFeed() {
     <div style={wrap}>
       <div style={header}>Activity Feed</div>
       {!data?.length ? (
-        <EmptyState title="No activity yet" subtitle="Activity will appear when bots start making requests" />
+        <EmptyState title="No activity yet" subtitle="Activity will appear when agents start making requests" />
       ) : (
         data.map((e) => (
           <div key={e.id} style={row}>
             <Timestamp iso={e.timestamp} />
             <Link
-              to={`/bots/${e.agentId}`}
+              to={`/agents/${e.agentId}`}
               style={{ color: 'var(--gold)', textDecoration: 'none', fontSize: 12 }}
             >
               {shortId(e.agentId)}

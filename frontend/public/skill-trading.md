@@ -267,3 +267,5 @@ curl https://eyebalz.xyz/api/v1/bots/proxy-status
 2. Never execute without an `Idempotency-Key` header.
 3. If a token expires, re-quote and ask again before executing.
 4. Always show `estimatedCostUsd` and `side` before asking for confirmation.
+5. **Never use private keys or sign transactions locally.** The gateway handles all wallet management and on-chain signing. If you get `WALLET_NOT_CONFIGURED`, call `POST /v1/bots/register` first.
+6. **Register before trading.** Call `POST /v1/bots/register` before your first trade. This is idempotent.

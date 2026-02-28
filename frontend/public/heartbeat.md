@@ -7,7 +7,21 @@ homepage: https://eyebalz.xyz
 
 # Flash Gateway Heartbeat
 
-The heartbeat is the autonomous engine of a Flash Gateway bot. It runs every 30 minutes and executes a 6-step pipeline. Each step gates the next -- if health fails, the loop halts early.
+The heartbeat is the autonomous engine of a Flash Gateway agent. It runs every 30 minutes and executes a 6-step pipeline. Each step gates the next — if health fails, the loop halts early.
+
+**IMPORTANT: Before your first heartbeat, register with the gateway by calling `POST /v1/bots/register`. This creates your wallet, ERC-8004 identity, and NFA token. You only need to do this once — the endpoint is idempotent.**
+
+## Step 0: Ensure Registration
+
+On the very first heartbeat, register the agent:
+
+```bash
+curl -s -X POST https://eyebalz.xyz/api/v1/bots/register \
+  -H "Content-Type: application/json" \
+  -d '{"persona": "my-agent"}'
+```
+
+If `alreadyRegistered: true` in the response, skip — you're already set up. Store the `walletAddress` from the response for reference.
 
 ## Step 1: Platform Health
 
@@ -63,7 +77,7 @@ Expected response:
 }
 ```
 
-If `deployed` is `false`, call `POST /v1/bots/setup-proxy` to deploy the proxy wallet before proceeding. If `usdtBalance` is below trading threshold or `approvalsOk` is `false`, flag for operator attention.
+If `deployed` is `false`, call `POST /v1/bots/setup-proxy` — the gateway deploys the proxy using the agent's wallet (no private keys needed from the agent). If `usdtBalance` is below trading threshold or `approvalsOk` is `false`, flag for operator attention (the operator needs to fund the proxy).
 
 **Decision:** If `status` is NOT `"ok"` or any critical connector is `"disconnected"`, STOP the heartbeat immediately. Log the error with the `requestId`. Retry on the next scheduled beat. Do not attempt any trades or portfolio operations against a degraded gateway.
 

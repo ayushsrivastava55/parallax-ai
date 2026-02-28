@@ -10,9 +10,11 @@ metadata: {"flash":{"category":"trading","api_base":"https://eyebalz.xyz/api/v1"
 
 ## What Is Flash Gateway
 
-Flash Gateway is a unified API layer for autonomous prediction market bots on BNB Chain. It aggregates multiple prediction market protocols and DeFi yield sources behind a single authenticated interface. **Bots never interact with underlying protocols or smart contracts directly** — all interactions go through Flash Gateway endpoints.
+Flash Gateway is a unified API layer for autonomous prediction market agents on BNB Chain. It aggregates multiple prediction market protocols and DeFi yield sources behind a single authenticated interface.
 
-### What Bots Can Do
+**CRITICAL: Agents only make HTTP calls to Flash Gateway. The gateway handles everything else — wallet generation, private key management, on-chain signing, proxy deployment, ERC-8004 registration, and protocol interactions. Agents never need private keys, never call smart contracts, and never interact with blockchain RPCs directly.**
+
+### What Agents Can Do
 
 - **Discover markets** across Predict.fun (BSC testnet) and Probable Markets (BSC mainnet) in one call
 - **Analyze theses** using AI-powered deep research with web search (MiniMax M2.5 + MCP search)
@@ -90,7 +92,7 @@ On error:
 | `POST` | `/v1/arb/scan` | Yes | Scan for cross-platform arbitrage |
 | `POST` | `/v1/yield/manage` | Yes | Status, deploy, or recall yield capital |
 | `GET` | `/v1/agent/identity` | Yes | Agent ERC-8004 identity and reputation |
-| `POST` | `/v1/bots/register` | Yes | Register bot wallet address |
+| `POST` | `/v1/bots/register` | Yes | Register agent — gateway generates wallet, registers ERC-8004, mints NFA |
 | `POST` | `/v1/bots/setup-proxy` | Yes | Deploy Gnosis Safe proxy for Probable |
 | `GET` | `/v1/bots/proxy-status` | Yes | Check proxy deployment, USDT balance, approvals |
 | `POST` | `/v1/bots/heartbeat` | Yes | Record heartbeat completion |
@@ -167,10 +169,10 @@ Headers: `Idempotency-Key: <unique-uuid>` (required)
 **POST /v1/bots/register**
 ```json
 {
-  "walletAddress": "0x1234...5678",  // required — 0x + 40 hex chars
-  "erc8004AgentId": 42              // optional — on-chain agent token ID
+  "persona": "my-agent-name"  // optional — display name (max 200 chars)
 }
 ```
+The gateway automatically: (1) generates a fresh wallet for the agent, (2) registers on ERC-8004 IdentityRegistry, (3) mints a FlashAgent NFA token. Returns `walletAddress`, `erc8004AgentId`, `nfaTokenId`. Idempotent — calling again returns the existing wallet.
 
 **POST /v1/bots/heartbeat**
 ```json
@@ -184,34 +186,28 @@ Headers: `Idempotency-Key: <unique-uuid>` (required)
 
 ### Predict.fun
 
-**No special setup required.** Works with any EOA wallet on BSC testnet.
+**No special setup required beyond registration.** Call `POST /v1/bots/register` and the gateway generates a wallet for the agent.
 
-However, for **live trade execution** (not just quotes), the wallet needs:
-- tBNB on BSC testnet (for gas fees)
-- tUSDT approved on the Predict.fun exchange contracts
-
-The gateway handles EIP-712 order signing, salt generation, amount computation, and API submission automatically. The bot just calls `/v1/trades/quote` + `/v1/trades/execute`.
+The gateway operator funds agent wallets with tBNB (gas) and tUSDT (trading). The gateway handles all EIP-712 order signing, salt generation, amount computation, and API submission automatically. Agents just call `/v1/trades/quote` + `/v1/trades/execute`.
 
 ### Probable Markets
 
-Probable requires a **proxy wallet** (Gnosis Safe) deployed on BSC mainnet before orders can be submitted.
+Probable requires a **proxy wallet** (Gnosis Safe) deployed on BSC mainnet before orders can be submitted. The gateway handles all deployment and signing — agents just call HTTP endpoints.
 
-**Setup flow:**
+**Setup flow (agent calls these endpoints):**
 
-1. Call `POST /v1/bots/setup-proxy` — deploys Gnosis Safe on-chain (~0.001 BNB gas)
-2. Fund the proxy address with USDT (transfer USDT to the proxy address returned)
-3. Call `GET /v1/bots/proxy-status` to verify: `deployed: true`, `usdtBalance > 0`, `approvalsOk: true`
+1. `POST /v1/bots/register` — if not already registered (creates wallet + ERC-8004 identity)
+2. `POST /v1/bots/setup-proxy` — gateway deploys a Gnosis Safe on-chain using the agent's wallet (~0.001 BNB gas, paid by gateway operator)
+3. `GET /v1/bots/proxy-status` — verify: `deployed: true`, `usdtBalance > 0`, `approvalsOk: true`
 4. Trade normally with `"platform": "probable"` in quote/execute calls
 
-**If proxy is not deployed**, orders fail with error `PROXY_NOT_DEPLOYED` (HTTP 404). The bot should tell the user to deploy the proxy wallet first.
+**If proxy is not deployed**, orders fail with error `PROXY_NOT_DEPLOYED` (HTTP 404). The agent should call `POST /v1/bots/setup-proxy`.
 
-**If the user hasn't set up their proxy yet**, tell them:
+**If the proxy needs funding**, tell the user:
 
-> "Before I can trade on Probable Markets, you need a proxy wallet. I can deploy one for you — it's a one-time setup that costs ~0.001 BNB. Should I proceed?"
+> "Your Probable proxy wallet needs USDT funding. The proxy address is [address from proxy-status]. Please transfer USDT to this address on BSC mainnet."
 
-Then call `POST /v1/bots/setup-proxy`.
-
-**Technical details:** Probable uses EIP-712 signing with domain `{name: "ProbableX", chainId: 56, verifyingContract: "0xF99F5367ce708c66F0860B77B4331301A5597c86"}` — note: NO `version` field in the domain. Orders set `maker` = proxy address, `signer` = EOA, `signatureType` = 2 (ProbGnosisSafe). Minimum fee: 1.75% (175 bps). The gateway handles all of this automatically.
+**The gateway handles all complexity:** EIP-712 signing, HMAC auth, proxy-as-maker routing, minimum fee calculations. Agents never touch Probable's CLOB or contracts directly.
 
 ## Two-Step Trade Flow (Critical)
 
@@ -281,7 +277,7 @@ Sign the canonical string with HMAC-SHA256 using your secret key.
 |------|------|---------|--------|
 | `VALIDATION_ERROR` | 400 | Bad request body | Fix request payload |
 | `INSUFFICIENT_FUNDS` | 400 | Wallet balance too low | Fund wallet |
-| `WALLET_NOT_CONFIGURED` | 400 | No private key configured | Set BNB_PRIVATE_KEY |
+| `WALLET_NOT_CONFIGURED` | 400 | Agent has no wallet yet | Call `POST /v1/bots/register` first |
 | `AUTH_INVALID` | 401/403 | Bad credentials or token mismatch | Check auth headers |
 | `POLICY_PLATFORM_BLOCKED` | 403 | Platform disabled by policy | Check allowed platforms |
 | `PROXY_NOT_DEPLOYED` | 404 | Probable proxy wallet missing | Call POST /v1/bots/setup-proxy |
@@ -328,6 +324,18 @@ When a user message or autonomous heartbeat arrives, route to the correct skill 
 Always enforce `rules.md` for every operation. Run `heartbeat.md` on schedule.
 
 ## Quick Start (End-to-End)
+
+### 0. Register your agent (FIRST THING TO DO)
+
+```bash
+curl -s -X POST https://eyebalz.xyz/api/v1/bots/register \
+  -H "Content-Type: application/json" \
+  -d '{"persona": "my-agent"}'
+```
+
+Response: `{"success":true,"data":{"agentId":"...","walletAddress":"0x...","erc8004AgentId":42,"nfaTokenId":1,"onChainVerified":true}}`
+
+The gateway generates a wallet for your agent, registers it on ERC-8004, and mints a Non-Fungible Agent token. This is idempotent — calling it again returns your existing wallet.
 
 ### 1. Verify gateway is alive
 

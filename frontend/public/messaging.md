@@ -26,10 +26,15 @@
 - "Autonomous mode on" / "Go autonomous" -> Enable the heartbeat loop (schedule heartbeat.md every 30 minutes)
 - "Autonomous mode off" / "Stop autonomous" -> Disable the heartbeat loop (cancel scheduled heartbeats)
 
+### Agent Registration
+
+- "Register" / "Set up my wallet" / "Get started" -> `POST /v1/bots/register` (gateway generates wallet, ERC-8004 identity, NFA)
+- "What's my wallet?" / "My agent ID" -> `POST /v1/bots/register` (idempotent, returns existing wallet)
+
 ### Probable Markets
 
 - "Trade on probable" -> `POST /v1/trades/quote` with `platform: "probable"`, then two-step flow
-- "Setup probable wallet" / "Deploy proxy" -> `POST /v1/bots/setup-proxy`
+- "Setup probable wallet" / "Deploy proxy" -> `POST /v1/bots/setup-proxy` (gateway deploys using agent's wallet)
 - "Proxy status" / "Check proxy" -> `GET /v1/bots/proxy-status`
 
 ### Execution

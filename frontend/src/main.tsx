@@ -4,8 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import { Shell } from './components/layout/Shell';
 import Dashboard from './pages/Dashboard';
-import Bots from './pages/Bots';
-import BotDetail from './pages/BotDetail';
+import Agents from './pages/Agents';
+import AgentDetail from './pages/AgentDetail';
 import Strategies from './pages/Strategies';
 import StrategyDetail from './pages/StrategyDetail';
 import Skills from './pages/Skills';
@@ -20,8 +20,8 @@ createRoot(document.getElementById('root')!).render(
         {/* Dashboard shell */}
         <Route element={<Shell />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/bots" element={<Bots />} />
-          <Route path="/bots/:agentId" element={<BotDetail />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/agents/:agentId" element={<AgentDetail />} />
           <Route path="/strategies" element={<Strategies />} />
           <Route path="/strategies/:strategyId" element={<StrategyDetail />} />
           <Route path="/skills" element={<Skills />} />

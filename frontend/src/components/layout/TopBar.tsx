@@ -45,7 +45,7 @@ export function TopBar() {
         <span style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)' }}>Flash Gateway</span>
       </div>
       <div style={right}>
-        {data && <span>{data.activeBots} bot{data.activeBots !== 1 ? 's' : ''} active</span>}
+        {data && <span>{data.activeBots} agent{data.activeBots !== 1 ? 's' : ''} active</span>}
         <span
           style={{
             ...pill,

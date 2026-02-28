@@ -1,5 +1,5 @@
-import { useBots } from '../hooks/useBots.ts';
-import { BotCard } from '../components/bots/BotCard.tsx';
+import { useAgents } from '../hooks/useAgents.ts';
+import { AgentCard } from '../components/agents/AgentCard.tsx';
 import { EmptyState } from '../components/shared/EmptyState.tsx';
 import type { CSSProperties } from 'react';
 
@@ -9,22 +9,22 @@ const grid: CSSProperties = {
   gap: 16,
 };
 
-export default function Bots() {
-  const { data, loading } = useBots();
+export default function Agents() {
+  const { data, loading } = useAgents();
 
   return (
     <div>
       <h1 style={{ fontFamily: 'var(--serif)', fontSize: 28, color: 'var(--t1)', marginBottom: 24 }}>
-        Bots
+        Agents
       </h1>
       {loading && !data ? (
         <EmptyState title="Loading..." />
       ) : !data?.length ? (
-        <EmptyState title="No bots registered" subtitle="Bots appear after making authenticated gateway requests" />
+        <EmptyState title="No agents registered" subtitle="Agents appear after making authenticated gateway requests" />
       ) : (
         <div style={grid}>
-          {data.map((bot) => (
-            <BotCard key={bot.agentId} bot={bot} />
+          {data.map((agent) => (
+            <AgentCard key={agent.agentId} agent={agent} />
           ))}
         </div>
       )}

@@ -15,7 +15,7 @@ export default function Strategies() {
         Strategies
       </h1>
       <p style={{ fontFamily: 'var(--sans)', fontSize: 14, color: 'var(--t2)', marginBottom: 24, lineHeight: 1.5 }}>
-        Strategy playbooks that autonomous bots can run. Each strategy has a skill file with full instructions.
+        Strategy playbooks that autonomous agents can run. Each strategy has a skill file with full instructions.
       </p>
       <div style={grid}>
         {STRATEGIES.map((s) => (

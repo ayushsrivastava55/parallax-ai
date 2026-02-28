@@ -39,7 +39,7 @@ const linkBase: CSSProperties = {
 
 const links = [
   { to: '/', label: 'Dashboard', icon: '\u25A0' },
-  { to: '/bots', label: 'Bots', icon: '\u2022' },
+  { to: '/agents', label: 'Agents', icon: '\u2022' },
   { to: '/strategies', label: 'Strategies', icon: '\u25B6' },
   { to: '/skills', label: 'Skills', icon: '\u2261' },
   { to: '/health', label: 'Health', icon: '\u2713' },

@@ -1,7 +1,39 @@
 import { existsSync, mkdirSync, readFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
 import { logger } from '../../lib/types.js';
 import type { BotRecord, BotStatus, PlatformStats } from '../types.ts';
+
+/* ── Wallet encryption ──────────────────────────────────────────── */
+
+const ENCRYPTION_ALGO = 'aes-256-gcm';
+
+function getEncryptionKey(): Buffer {
+  const secret = process.env.FLASH_WALLET_ENCRYPTION_SECRET || process.env.BNB_PRIVATE_KEY || 'flash-gateway-default-dev-key';
+  return scryptSync(secret, 'flash-gateway-salt', 32);
+}
+
+export function encryptPrivateKey(privateKey: string): string {
+  const key = getEncryptionKey();
+  const iv = randomBytes(16);
+  const cipher = createCipheriv(ENCRYPTION_ALGO, key, iv);
+  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag().toString('hex');
+  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
+}
+
+export function decryptPrivateKey(encryptedData: string): string {
+  const key = getEncryptionKey();
+  const [ivHex, authTagHex, encrypted] = encryptedData.split(':');
+  const iv = Buffer.from(ivHex, 'hex');
+  const authTag = Buffer.from(authTagHex, 'hex');
+  const decipher = createDecipheriv(ENCRYPTION_ALGO, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
+}
 
 const REGISTRY_DIR = '.flash';
 const REGISTRY_FILE = join(REGISTRY_DIR, 'bot-registry.jsonl');
@@ -75,17 +107,35 @@ export function ensureBotRegistered(agentId: string, keyId: string): void {
 export function setBotWalletAddress(
   agentId: string,
   walletAddress: string,
-  erc8004AgentId?: number,
-  onChainVerified = false,
+  opts?: {
+    erc8004AgentId?: number;
+    onChainVerified?: boolean;
+    encryptedPrivateKey?: string;
+    nfaTokenId?: number;
+  },
 ): void {
   load();
   const bot = bots.get(agentId);
   if (!bot) return;
   bot.walletAddress = walletAddress;
-  bot.onChainVerified = onChainVerified;
-  if (erc8004AgentId !== undefined) bot.erc8004AgentId = erc8004AgentId;
+  bot.onChainVerified = opts?.onChainVerified ?? false;
+  if (opts?.erc8004AgentId !== undefined) bot.erc8004AgentId = opts.erc8004AgentId;
+  if (opts?.encryptedPrivateKey) bot.encryptedPrivateKey = opts.encryptedPrivateKey;
+  if (opts?.nfaTokenId !== undefined) bot.nfaTokenId = opts.nfaTokenId;
   persist(bot);
-  logger.info({ agentId, walletAddress, onChainVerified }, '[BOT_REGISTRY] wallet address set');
+  logger.info({ agentId, walletAddress, onChainVerified: bot.onChainVerified }, '[BOT_REGISTRY] wallet address set');
+}
+
+export function getAgentPrivateKey(agentId: string): string | null {
+  load();
+  const bot = bots.get(agentId);
+  if (!bot?.encryptedPrivateKey) return null;
+  try {
+    return decryptPrivateKey(bot.encryptedPrivateKey);
+  } catch (err) {
+    logger.error({ agentId, err }, '[BOT_REGISTRY] failed to decrypt agent key');
+    return null;
+  }
 }
 
 export function getBotByWallet(walletAddress: string): BotRecord | undefined {

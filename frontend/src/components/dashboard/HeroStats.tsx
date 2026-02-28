@@ -19,9 +19,9 @@ export function HeroStats() {
 
   return (
     <div style={grid}>
-      <StatCard label="Bots" value={data ? String(data.totalBots) : '-'} accent="var(--gold)" />
-      <StatCard label="Volume" value={data ? formatUsd(data.totalVolume) : '-'} />
-      <StatCard label="Strategies" value={data ? String(data.activeStrategies) : '-'} />
+      <StatCard label="Active Agents" value={data ? String(data.activeBots) : '-'} accent="var(--gold)" />
+      <StatCard label="Volume" value={data ? formatUsd(data.totalVolume) : '-'} accent="var(--cyan)" />
+      <StatCard label="Strategies" value={data ? String(data.activeStrategies) : '-'} accent="var(--green)" />
       <StatCard
         label="Health"
         value={data ? (healthOk ? 'OK' : 'DOWN') : '-'}

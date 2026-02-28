@@ -1,5 +1,5 @@
-import { useBots } from '../../hooks/useBots.ts';
-import { BotCard } from '../bots/BotCard.tsx';
+import { useAgents } from '../../hooks/useAgents.ts';
+import { AgentCard } from '../agents/AgentCard.tsx';
 import { EmptyState } from '../shared/EmptyState.tsx';
 import type { CSSProperties } from 'react';
 
@@ -27,25 +27,25 @@ const grid: CSSProperties = {
   padding: 16,
 };
 
-export function BotGrid() {
-  const { data, loading } = useBots();
+export function AgentGrid() {
+  const { data, loading } = useAgents();
 
   if (loading && !data) {
-    return <div style={wrap}><div style={header}>Registered Bots</div><EmptyState title="Loading..." /></div>;
+    return <div style={wrap}><div style={header}>Registered Agents</div><EmptyState title="Loading..." /></div>;
   }
 
   return (
     <div style={wrap}>
-      <div style={header}>Registered Bots</div>
+      <div style={header}>Registered Agents</div>
       {!data?.length ? (
         <EmptyState
-          title="No bots registered"
-          subtitle="Bots appear here after they make authenticated requests to the gateway"
+          title="No agents registered"
+          subtitle="Agents appear here after they make authenticated requests to the gateway"
         />
       ) : (
         <div style={grid}>
-          {data.map((bot) => (
-            <BotCard key={bot.agentId} bot={bot} />
+          {data.map((agent) => (
+            <AgentCard key={agent.agentId} agent={agent} />
           ))}
         </div>
       )}

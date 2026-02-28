@@ -46,6 +46,8 @@ import {
   getAllBots,
   getPlatformStats,
   setBotWalletAddress,
+  encryptPrivateKey,
+  getAgentPrivateKey,
 } from '../gateway/services/botRegistry.ts';
 import {
   recordActivity,
@@ -525,17 +527,19 @@ async function handleTradeExecute(req: Request, res: Response): Promise<void> {
       type: 'limit',
     };
 
-    // Resolve per-agent wallet: use bot-provided signature or fall back to global key
+    // Resolve per-agent wallet: prefer agent's custodial key, then relay mode, then global key
     const botSignature = parsed.data.signature;
     const botSignerAddress = parsed.data.signerAddress;
     const bot = getBot(auth.context.agentId);
+    const agentKey = getAgentPrivateKey(auth.context.agentId);
     const useRelayMode = !!(botSignature && botSignerAddress);
+    const effectivePrivateKey = agentKey || String(process.env.BNB_PRIVATE_KEY || '');
 
     let result: TradeResult;
     if (payload.platform === 'predictfun') {
       const pf = new PredictFunService({
         useTestnet: true,
-        privateKey: useRelayMode ? undefined : String(process.env.BNB_PRIVATE_KEY || ''),
+        privateKey: useRelayMode ? undefined : effectivePrivateKey,
       });
       result = await pf.placeOrder(
         order,
@@ -549,7 +553,7 @@ async function handleTradeExecute(req: Request, res: Response): Promise<void> {
       const op = makeOpinion();
       result = await op.placeOrder(order);
     } else if (payload.platform === 'probable') {
-      const pr = makeProbable();
+      const pr = new ProbableService({ enabled: true, privateKey: effectivePrivateKey });
       result = await pr.placeOrder(order);
     } else if (payload.platform === 'xmarket') {
       const xm = makeXmarket();
@@ -823,6 +827,23 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
 
   trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.register');
 
+  // Check if agent already has a wallet (idempotent)
+  const existingBot = getBot(auth.context.agentId);
+  if (existingBot?.walletAddress) {
+    return respond(
+      res,
+      200,
+      asSuccess(requestId, {
+        agentId: auth.context.agentId,
+        walletAddress: existingBot.walletAddress,
+        erc8004AgentId: existingBot.erc8004AgentId ?? null,
+        nfaTokenId: existingBot.nfaTokenId ?? null,
+        onChainVerified: existingBot.onChainVerified ?? false,
+        alreadyRegistered: true,
+      }),
+    );
+  }
+
   const parsed = agentRegisterSchema.safeParse(parseBody(req));
   if (!parsed.success) {
     return respond(
@@ -832,57 +853,142 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
     );
   }
 
-  const { walletAddress, erc8004AgentId } = parsed.data;
+  const persona = parsed.data.persona || `flash-agent-${auth.context.agentId.slice(0, 8)}`;
+
+  // 1. Generate a fresh wallet for this agent
+  const { ethers } = await import('ethers');
+  const agentWallet = ethers.Wallet.createRandom();
+  const walletAddress = agentWallet.address;
+  const encrypted = encryptPrivateKey(agentWallet.privateKey);
+
+  auditLog('bots.register.wallet_generated', {
+    requestId,
+    agentId: auth.context.agentId,
+    walletAddress,
+  });
+
+  // 2. Register on ERC-8004 IdentityRegistry + mint NFA (best-effort)
+  let erc8004AgentId: number | undefined;
+  let nfaTokenId: number | undefined;
   let onChainVerified = false;
 
-  // Verify on-chain ownership if ERC-8004 agentId is provided
-  if (erc8004AgentId !== undefined) {
+  const ercConfig = buildERC8004Config();
+  if (ercConfig) {
     try {
-      const ercConfig = buildERC8004Config();
-      if (ercConfig) {
-        const service = new ERC8004Service(ercConfig);
-        const identity = await service.getAgentIdentity();
-        // Temporarily set the agentId to check ownership
-        const { ethers } = await import('ethers');
-        const provider = new ethers.JsonRpcProvider(ercConfig.rpcUrl);
-        const identityRegistry = new ethers.Contract(
-          ercConfig.identityRegistryAddress,
-          ['function ownerOf(uint256) view returns (address)'],
-          provider,
-        );
-        const owner = await identityRegistry.ownerOf(erc8004AgentId);
-        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
-          onChainVerified = true;
-        } else {
-          return respond(
-            res,
-            403,
-            asFailure(requestId, 'OWNERSHIP_MISMATCH', 'On-chain ownerOf does not match provided wallet address', {
-              expected: walletAddress,
-              actual: owner,
-            }),
+      const provider = new ethers.JsonRpcProvider(ercConfig.rpcUrl);
+      const gatewayWallet = new ethers.Wallet(ercConfig.privateKey, provider);
+
+      // Register on IdentityRegistry (gateway wallet pays gas, agent wallet gets the identity)
+      const identityRegistry = new ethers.Contract(
+        ercConfig.identityRegistryAddress,
+        [
+          'function register(string calldata metadataURI) external returns (uint256)',
+          'event Registered(uint256 indexed agentId, address indexed owner)',
+        ],
+        gatewayWallet,
+      );
+
+      const metadataURI = `https://eyebalz.xyz/api/v1/agent/metadata/${auth.context.agentId}`;
+      const regTx = await identityRegistry['register(string)'](metadataURI);
+      const regReceipt = await regTx.wait();
+
+      // Extract agentId from Registered event
+      for (const log of regReceipt.logs) {
+        try {
+          const parsed = identityRegistry.interface.parseLog({
+            topics: log.topics as string[],
+            data: log.data,
+          });
+          if (parsed && parsed.name === 'Registered') {
+            erc8004AgentId = Number(parsed.args.agentId);
+            break;
+          }
+        } catch { /* skip non-matching logs */ }
+      }
+
+      if (erc8004AgentId !== undefined) {
+        onChainVerified = true;
+        auditLog('bots.register.erc8004_registered', {
+          requestId,
+          agentId: auth.context.agentId,
+          erc8004AgentId,
+          txHash: regReceipt.hash,
+        });
+      }
+
+      // 3. Mint FlashAgent NFA (if contract is configured)
+      if (ercConfig.flashAgentAddress && erc8004AgentId !== undefined) {
+        try {
+          const flashAgent = new ethers.Contract(
+            ercConfig.flashAgentAddress,
+            [
+              'function mintAgent(address to, string calldata persona, string calldata experience, string calldata uri) external returns (uint256)',
+              'event AgentMinted(uint256 indexed tokenId, address indexed owner)',
+            ],
+            gatewayWallet,
           );
+
+          const mintTx = await flashAgent.mintAgent(
+            walletAddress,
+            persona,
+            'prediction-markets',
+            metadataURI,
+          );
+          const mintReceipt = await mintTx.wait();
+
+          for (const log of mintReceipt.logs) {
+            try {
+              const parsed = flashAgent.interface.parseLog({
+                topics: log.topics as string[],
+                data: log.data,
+              });
+              if (parsed && parsed.name === 'AgentMinted') {
+                nfaTokenId = Number(parsed.args.tokenId);
+                break;
+              }
+            } catch { /* skip non-matching logs */ }
+          }
+
+          auditLog('bots.register.nfa_minted', {
+            requestId,
+            agentId: auth.context.agentId,
+            nfaTokenId,
+            txHash: mintReceipt.hash,
+          });
+        } catch (error) {
+          auditLog('bots.register.nfa_mint_failed', {
+            requestId,
+            agentId: auth.context.agentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          // Non-fatal: agent works without NFA
         }
       }
     } catch (error) {
-      auditLog('bots.register.erc8004_check_failed', {
+      auditLog('bots.register.erc8004_failed', {
         requestId,
         agentId: auth.context.agentId,
         error: error instanceof Error ? error.message : String(error),
       });
-      // Non-fatal: proceed without on-chain verification
+      // Non-fatal: agent gets a wallet even if on-chain registration fails
     }
   }
 
-  // Register wallet in bot registry
+  // 4. Store everything in the registry
   ensureBotRegistered(auth.context.agentId, auth.context.keyId);
-  setBotWalletAddress(auth.context.agentId, walletAddress, erc8004AgentId, onChainVerified);
+  setBotWalletAddress(auth.context.agentId, walletAddress, {
+    erc8004AgentId,
+    onChainVerified,
+    encryptedPrivateKey: encrypted,
+    nfaTokenId,
+  });
 
   auditLog('bots.register', {
     requestId,
     agentId: auth.context.agentId,
     walletAddress,
     erc8004AgentId,
+    nfaTokenId,
     onChainVerified,
   });
 
@@ -893,6 +999,7 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
       agentId: auth.context.agentId,
       walletAddress,
       erc8004AgentId: erc8004AgentId ?? null,
+      nfaTokenId: nfaTokenId ?? null,
       onChainVerified,
     }),
   );
@@ -908,13 +1015,25 @@ async function handleSetupProxy(req: Request, res: Response): Promise<void> {
   trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.setup-proxy');
 
   try {
-    const probable = makeProbable();
+    // Use per-agent wallet if available, fall back to global
+    const agentKey = getAgentPrivateKey(auth.context.agentId);
+    const privateKey = agentKey || String(process.env.BNB_PRIVATE_KEY || '');
+    if (!privateKey) {
+      return respond(
+        res,
+        400,
+        asFailure(requestId, 'WALLET_NOT_CONFIGURED', 'Agent has no wallet — call POST /v1/bots/register first'),
+      );
+    }
+
+    const probable = new ProbableService({ enabled: true, privateKey });
     const proxyAddress = await probable.ensureProxyDeployed();
 
     auditLog('bots.setup-proxy', {
       requestId,
       agentId: auth.context.agentId,
       proxyAddress,
+      usedAgentWallet: !!agentKey,
     });
 
     return respond(
@@ -943,7 +1062,10 @@ async function handleProxyStatus(req: Request, res: Response): Promise<void> {
   trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'bots.proxy-status');
 
   try {
-    const probable = makeProbable();
+    // Use per-agent wallet if available, fall back to global
+    const agentKey = getAgentPrivateKey(auth.context.agentId);
+    const privateKey = agentKey || String(process.env.BNB_PRIVATE_KEY || '');
+    const probable = new ProbableService({ enabled: true, privateKey });
     const proxyAddress = await probable.resolveProxyAddress();
 
     if (!proxyAddress) {

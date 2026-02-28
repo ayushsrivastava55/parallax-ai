@@ -1,8 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
-import { useBotDetail } from '../hooks/useBotDetail.ts';
-import { useBotActivity } from '../hooks/useBotActivity.ts';
-import { BotProfile } from '../components/bots/BotProfile.tsx';
-import { BotTradeHistory } from '../components/bots/BotTradeHistory.tsx';
+import { useAgentDetail } from '../hooks/useAgentDetail.ts';
+import { useAgentActivity } from '../hooks/useAgentActivity.ts';
+import { AgentProfile } from '../components/agents/AgentProfile.tsx';
+import { AgentTradeHistory } from '../components/agents/AgentTradeHistory.tsx';
 import { EmptyState } from '../components/shared/EmptyState.tsx';
 import { Timestamp } from '../components/shared/Timestamp.tsx';
 import { shortId } from '../lib/formatters.ts';
@@ -19,29 +19,29 @@ const row: CSSProperties = {
   alignItems: 'center',
 };
 
-export default function BotDetail() {
+export default function AgentDetail() {
   const { agentId } = useParams<{ agentId: string }>();
-  const { bot, stats } = useBotDetail(agentId!);
-  const activity = useBotActivity(agentId!, 100);
+  const { agent, stats } = useAgentDetail(agentId!);
+  const activity = useAgentActivity(agentId!, 100);
 
-  if (bot.loading && !bot.data) {
+  if (agent.loading && !agent.data) {
     return <EmptyState title="Loading..." />;
   }
 
-  if (!bot.data) {
-    return <EmptyState title="Bot not found" subtitle={`No bot with ID ${agentId}`} />;
+  if (!agent.data) {
+    return <EmptyState title="Agent not found" subtitle={`No agent with ID ${agentId}`} />;
   }
 
   return (
     <div>
       <Link
-        to="/bots"
+        to="/agents"
         style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--t3)', textDecoration: 'none', marginBottom: 16, display: 'inline-block' }}
       >
-        &larr; All Bots
+        &larr; All Agents
       </Link>
-      <BotProfile bot={bot.data} stats={stats.data} />
-      <BotTradeHistory activity={activity.data ?? []} />
+      <AgentProfile agent={agent.data} stats={stats.data} />
+      <AgentTradeHistory activity={activity.data ?? []} />
 
       <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--line)', fontFamily: 'var(--mono)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--t2)' }}>
