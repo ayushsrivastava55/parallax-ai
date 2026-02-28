@@ -9,8 +9,8 @@ import type { BotRecord, BotStatus, PlatformStats } from '../types.ts';
 const ENCRYPTION_ALGO = 'aes-256-gcm';
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.FLASH_WALLET_ENCRYPTION_SECRET || process.env.BNB_PRIVATE_KEY || 'flash-gateway-default-dev-key';
-  return scryptSync(secret, 'flash-gateway-salt', 32);
+  const secret = process.env.EYEBALZ_WALLET_ENCRYPTION_SECRET || process.env.BNB_PRIVATE_KEY || 'eyebalz-gateway-default-dev-key';
+  return scryptSync(secret, 'eyebalz-gateway-salt', 32);
 }
 
 export function encryptPrivateKey(privateKey: string): string {
@@ -35,7 +35,7 @@ export function decryptPrivateKey(encryptedData: string): string {
   return decrypted;
 }
 
-const REGISTRY_DIR = '.flash';
+const REGISTRY_DIR = '.eyebalz';
 const REGISTRY_FILE = join(REGISTRY_DIR, 'bot-registry.jsonl');
 
 const bots = new Map<string, BotRecord>();

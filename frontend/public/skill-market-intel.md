@@ -1,12 +1,12 @@
 ---
-name: flash-market-intel
+name: eyebalz-market-intel
 version: 2.0.0
-description: Market discovery, thesis analysis, and arbitrage scanning via Flash Gateway.
-author: flash-team
+description: Market discovery, thesis analysis, and arbitrage scanning via Eyebalz Gateway.
+author: eyebalz-team
 tags: [markets, analysis, arbitrage, prediction-markets]
 ---
 
-# Flash Skill: Market Intelligence
+# Eyebalz Skill: Market Intelligence
 
 Use this skill when the user asks about live markets, wants a thesis analyzed,
 asks whether a market is overpriced or underpriced, or wants to find arbitrage
@@ -198,4 +198,4 @@ curl -X POST https://eyebalz.xyz/api/v1/arb/scan \
 
 1. Always start with fresh market data; never cache across user turns.
 2. Show confidence and risk language clearly to the user.
-3. Do not execute orders from this skill — hand off to flash-trading.
+3. Do not execute orders from this skill — hand off to eyebalz-trading.

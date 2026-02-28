@@ -665,7 +665,7 @@ async function handleSystemHealth(_req: GatewayRouteRequest, res: any): Promise<
   const requestId = randomUUID();
   respond(res, 200, asSuccess(requestId, {
     status: 'ok',
-    service: 'flash-gateway',
+    service: 'eyebalz-gateway',
     version: 'v1',
   }));
 }

@@ -49,7 +49,7 @@ const links = [
 export function Sidebar() {
   return (
     <nav style={nav}>
-      <div style={logo}>Flash</div>
+      <div style={logo}>Eyebalz</div>
       {links.map((l) => (
         <NavLink
           key={l.to}

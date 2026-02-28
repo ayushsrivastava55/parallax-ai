@@ -116,7 +116,7 @@ export function TerminalDemo() {
           marginLeft: 10,
           letterSpacing: '0.04em',
         }}>
-          flash — live session
+          eyebalz — live session
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
           <div style={{

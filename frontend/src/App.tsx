@@ -83,8 +83,8 @@ function Nav() {
           fontSize: 12,
           fontWeight: 700,
           color: '#0a0a0a',
-        }}>F</div>
-        <span style={{ fontFamily: 'var(--sans)', fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>Flash</span>
+        }}>E</div>
+        <span style={{ fontFamily: 'var(--sans)', fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>Eyebalz</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -172,7 +172,7 @@ function Hero() {
             marginBottom: 32,
             animation: 'fadeUp 0.6s ease 0.16s both',
           }}>
-            Flash researches what you believe, finds where the market is
+            Eyebalz researches what you believe, finds where the market is
             wrong, and waits for your call. An AI agent for BNB Chain
             that never trades without permission.
           </p>
@@ -192,7 +192,7 @@ function Hero() {
               borderRadius: 3,
               letterSpacing: '0.02em',
             }}>
-              Try Flash live
+              Try Eyebalz live
             </Link>
             <a href="#how" style={{
               fontFamily: 'var(--mono)',
@@ -242,11 +242,11 @@ function HowItWorks() {
         {[
           {
             title: 'Share your thesis',
-            body: 'Say what you believe in plain language, or paste a market URL. Flash handles the rest.',
+            body: 'Say what you believe in plain language, or paste a market URL. Eyebalz handles the rest.',
             example: '"I think BTC holds above $95k through the weekend"',
           },
           {
-            title: 'Flash researches',
+            title: 'Eyebalz researches',
             body: 'Autonomous web search — news, sentiment, on-chain signals, historical patterns — to build a probability model.',
             example: 'Scanning 12 sources... Model probability: 71%',
           },
@@ -257,7 +257,7 @@ function HowItWorks() {
           },
           {
             title: 'You decide',
-            body: 'Flash never auto-trades. Every position needs your explicit go-ahead. Modify size, reject, or confirm.',
+            body: 'Eyebalz never auto-trades. Every position needs your explicit go-ahead. Modify size, reject, or confirm.',
             example: '"Execute option 1, 200 shares"',
           },
         ].map((s, i) => (
@@ -366,7 +366,7 @@ function ArbSection() {
             color: 'var(--t2)',
             maxWidth: 400,
           }}>
-            Flash monitors price discrepancies between Opinion.trade and
+            Eyebalz monitors price discrepancies between Opinion.trade and
             Predict.fun. Buy YES on one, NO on the other — when the combined cost
             is under $1.00, profit is guaranteed regardless of the outcome.
           </p>
@@ -429,7 +429,7 @@ function Footer() {
           BNB Chain x YZi Labs Hackathon 2026
         </span>
         <span style={{ fontFamily: 'var(--sans)', fontSize: 11, color: 'var(--t3)' }}>
-          Flash does not provide financial advice.
+          Eyebalz does not provide financial advice.
         </span>
       </div>
     </footer>

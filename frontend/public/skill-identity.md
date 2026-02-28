@@ -1,12 +1,12 @@
 ---
-name: flash-identity
+name: eyebalz-identity
 version: 2.0.0
 description: On-chain identity, reputation, system health, and connector status via ERC-8004.
-author: flash-team
+author: eyebalz-team
 tags: [identity, reputation, erc-8004, health, connectors]
 ---
 
-# Flash Skill: Identity and Reputation
+# Eyebalz Skill: Identity and Reputation
 
 Use this skill when the user asks about the agent's on-chain identity,
 reputation score, platform health, or connector status.
@@ -23,7 +23,7 @@ Base URL: `https://eyebalz.xyz/api/v1`
 **`GET /v1/agent/identity`**
 
 Returns the agent's ERC-8004 on-chain identity, reputation metrics, and
-Flash-specific statistics.
+Eyebalz-specific statistics.
 
 ### Response (200)
 
@@ -35,7 +35,7 @@ Flash-specific statistics.
     "agentId": "0x1234567890abcdef1234567890abcdef12345678",
     "owner": "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
     "metadata": {
-      "name": "Flash Agent Alpha",
+      "name": "Eyebalz Agent Alpha",
       "version": "2.0.0",
       "chain": "bnb-testnet"
     }
@@ -47,7 +47,7 @@ Flash-specific statistics.
     "avgPnlPct": 3.2,
     "lastUpdated": "2026-02-28T10:30:00Z"
   },
-  "flashStats": {
+  "eyebalzStats": {
     "totalVolumeUsd": 28400,
     "activeSince": "2026-01-15T00:00:00Z",
     "platformsUsed": ["predictfun", "probable"]
@@ -83,7 +83,7 @@ is running before making other calls.
 {
   "ok": true,
   "status": "ok",
-  "service": "flash-gateway",
+  "service": "eyebalz-gateway",
   "version": "v1"
 }
 ```

@@ -17,7 +17,7 @@ export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [connected, setConnected] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
-  const [agentName, setAgentName] = useState('Flash');
+  const [agentName, setAgentName] = useState('Eyebalz');
 
   const socketRef = useRef<Socket | null>(null);
   const sessionRef = useRef<string | null>(null);
@@ -45,7 +45,7 @@ export function useChat() {
         const agents = agentData.data?.agents || agentData.agents || [];
         if (agents.length === 0 || dead) return;
         const agent = agents[0];
-        setAgentName(agent.name || 'Flash');
+        setAgentName(agent.name || 'Eyebalz');
 
         // 2. Create session
         const sessRes = await fetch(`${API_BASE}/messaging/sessions`, {

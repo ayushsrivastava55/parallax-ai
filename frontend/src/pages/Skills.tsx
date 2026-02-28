@@ -30,7 +30,7 @@ export default function Skills() {
         Skill Files
       </h1>
       <p style={{ fontFamily: 'var(--sans)', fontSize: 14, color: 'var(--t2)', marginBottom: 24, lineHeight: 1.5 }}>
-        OpenClaw agents install these skill files to learn how to use Flash Gateway autonomously.
+        OpenClaw agents install these skill files to learn how to use Eyebalz Gateway autonomously.
       </p>
 
       <SkillInstaller />

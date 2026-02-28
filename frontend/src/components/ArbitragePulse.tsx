@@ -47,7 +47,7 @@ export function ArbitragePulse() {
 
     const load = async () => {
       try {
-        const res = await fetch('/api/flash/arb-scan');
+        const res = await fetch('/api/eyebalz/arb-scan');
         if (!res.ok) throw new Error('not ok');
         const json = await res.json();
         if (!mounted) return;
@@ -61,7 +61,7 @@ export function ArbitragePulse() {
       } catch {
         if (!mounted) return;
         setArbs([]);
-        setError('Arb scan unavailable. Start agent and verify /api/flash/arb-scan.');
+        setError('Arb scan unavailable. Start agent and verify /api/eyebalz/arb-scan.');
       } finally {
         if (mounted) setLoading(false);
       }

@@ -22,20 +22,20 @@ const codeBlock: CSSProperties = {
   overflowX: 'auto',
 };
 
-const INSTALL_CMD = `mkdir -p ~/.openclaw/skills/flash-gateway
-curl -sL https://eyebalz.xyz/skill.md > ~/.openclaw/skills/flash-gateway/SKILL.md
-curl -sL https://eyebalz.xyz/skill.json > ~/.openclaw/skills/flash-gateway/package.json
-curl -sL https://eyebalz.xyz/heartbeat.md > ~/.openclaw/skills/flash-gateway/HEARTBEAT.md
-curl -sL https://eyebalz.xyz/strategy-playbook.md > ~/.openclaw/skills/flash-gateway/STRATEGY_PLAYBOOK.md
-curl -sL https://eyebalz.xyz/strategy-delta-neutral.md > ~/.openclaw/skills/flash-gateway/STRATEGY_DELTA_NEUTRAL.md
-curl -sL https://eyebalz.xyz/strategy-thesis.md > ~/.openclaw/skills/flash-gateway/STRATEGY_THESIS.md
-curl -sL https://eyebalz.xyz/strategy-yield.md > ~/.openclaw/skills/flash-gateway/STRATEGY_YIELD.md
-curl -sL https://eyebalz.xyz/skill-market-intel.md > ~/.openclaw/skills/flash-gateway/MARKET_INTEL.md
-curl -sL https://eyebalz.xyz/skill-trading.md > ~/.openclaw/skills/flash-gateway/TRADING.md
-curl -sL https://eyebalz.xyz/skill-portfolio.md > ~/.openclaw/skills/flash-gateway/PORTFOLIO.md
-curl -sL https://eyebalz.xyz/skill-identity.md > ~/.openclaw/skills/flash-gateway/IDENTITY.md
-curl -sL https://eyebalz.xyz/messaging.md > ~/.openclaw/skills/flash-gateway/MESSAGING.md
-curl -sL https://eyebalz.xyz/rules.md > ~/.openclaw/skills/flash-gateway/RULES.md`;
+const INSTALL_CMD = `mkdir -p ~/.openclaw/skills/eyebalz-gateway
+curl -sL https://eyebalz.xyz/skill.md > ~/.openclaw/skills/eyebalz-gateway/SKILL.md
+curl -sL https://eyebalz.xyz/skill.json > ~/.openclaw/skills/eyebalz-gateway/package.json
+curl -sL https://eyebalz.xyz/heartbeat.md > ~/.openclaw/skills/eyebalz-gateway/HEARTBEAT.md
+curl -sL https://eyebalz.xyz/strategy-playbook.md > ~/.openclaw/skills/eyebalz-gateway/STRATEGY_PLAYBOOK.md
+curl -sL https://eyebalz.xyz/strategy-delta-neutral.md > ~/.openclaw/skills/eyebalz-gateway/STRATEGY_DELTA_NEUTRAL.md
+curl -sL https://eyebalz.xyz/strategy-thesis.md > ~/.openclaw/skills/eyebalz-gateway/STRATEGY_THESIS.md
+curl -sL https://eyebalz.xyz/strategy-yield.md > ~/.openclaw/skills/eyebalz-gateway/STRATEGY_YIELD.md
+curl -sL https://eyebalz.xyz/skill-market-intel.md > ~/.openclaw/skills/eyebalz-gateway/MARKET_INTEL.md
+curl -sL https://eyebalz.xyz/skill-trading.md > ~/.openclaw/skills/eyebalz-gateway/TRADING.md
+curl -sL https://eyebalz.xyz/skill-portfolio.md > ~/.openclaw/skills/eyebalz-gateway/PORTFOLIO.md
+curl -sL https://eyebalz.xyz/skill-identity.md > ~/.openclaw/skills/eyebalz-gateway/IDENTITY.md
+curl -sL https://eyebalz.xyz/messaging.md > ~/.openclaw/skills/eyebalz-gateway/MESSAGING.md
+curl -sL https://eyebalz.xyz/rules.md > ~/.openclaw/skills/eyebalz-gateway/RULES.md`;
 
 export function SkillInstaller() {
   const [copied, setCopied] = useState(false);

@@ -42,7 +42,7 @@ export function TopBar() {
   return (
     <div style={bar}>
       <div style={left}>
-        <span style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)' }}>Flash Gateway</span>
+        <span style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)' }}>Eyebalz Gateway</span>
       </div>
       <div style={right}>
         {data && <span>{data.activeBots} agent{data.activeBots !== 1 ? 's' : ''} active</span>}

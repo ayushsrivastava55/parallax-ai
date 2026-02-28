@@ -47,7 +47,7 @@ function ThinkingDots() {
         letterSpacing: '0.08em',
         marginBottom: 4,
         textTransform: 'uppercase',
-      }}>Flash</div>
+      }}>Eyebalz</div>
       <div style={{
         fontFamily: 'var(--mono)',
         fontSize: 12,
@@ -247,7 +247,7 @@ export default function Chat() {
                   maxWidth: 360,
                   lineHeight: 1.5,
                 }}>
-                  Share what you believe, paste a market URL, or ask Flash to scan for opportunities.
+                  Share what you believe, paste a market URL, or ask Eyebalz to scan for opportunities.
                 </p>
               </div>
 
@@ -306,7 +306,7 @@ export default function Chat() {
                 letterSpacing: '0.08em',
                 marginBottom: 4,
                 textTransform: 'uppercase',
-              }}>Flash</div>
+              }}>Eyebalz</div>
               <div style={{
                 display: 'inline-block',
                 maxWidth: 720,
@@ -364,7 +364,7 @@ export default function Chat() {
             }}
             placeholder={connected
               ? 'Share a thesis, paste a market URL, or ask anything...'
-              : 'Connecting to Flash agent...'
+              : 'Connecting to Eyebalz agent...'
             }
             disabled={!connected}
             style={{

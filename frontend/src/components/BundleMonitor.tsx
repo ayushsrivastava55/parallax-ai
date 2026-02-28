@@ -24,7 +24,7 @@ export function BundleMonitor() {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch('/api/flash/bundles?limit=5');
+        const res = await fetch('/api/eyebalz/bundles?limit=5');
         if (!res.ok) throw new Error('not ok');
         const json = await res.json();
         if (mounted && json.success && Array.isArray(json.data)) {

@@ -13,7 +13,7 @@ A prediction market prices outcomes as contracts between $0.00 and $1.00.
 - **Price = implied probability.** A YES contract at $0.65 means the market implies a 65% chance of that outcome.
 - **YES + NO = 1.00.** On a single platform, buying YES at $0.65 is equivalent to selling NO at $0.35.
 - **Profit on resolution.** If you buy YES at $0.65 and the outcome resolves YES, you receive $1.00 — a $0.35 profit per contract.
-- **Cross-platform divergence.** Different platforms can price the same outcome differently. When YES_A + NO_B < 1.00, an arbitrage opportunity exists. Flash Gateway supports 2 platforms (Predict.fun and Probable) for cross-platform arb scanning.
+- **Cross-platform divergence.** Different platforms can price the same outcome differently. When YES_A + NO_B < 1.00, an arbitrage opportunity exists. Eyebalz Gateway supports 2 platforms (Predict.fun and Probable) for cross-platform arb scanning.
 
 ## Risk Management Principles
 

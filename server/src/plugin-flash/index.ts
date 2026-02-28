@@ -25,12 +25,12 @@ import { ERC8004Service, buildERC8004Config } from './services/erc8004.ts';
 import { createGatewayRoutes, createBotRoutes } from '../gateway/index.ts';
 
 const flashPlugin: Plugin = {
-  name: 'flash',
+  name: 'eyebalz',
   description:
     'BNB Chain prediction market trading agent — cross-platform analysis, arbitrage detection, and human-in-the-loop trade execution across Opinion.trade and Predict.fun.',
 
   async init(_config: Record<string, string>) {
-    logger.info('═══ Flash Plugin Initialized ═══');
+    logger.info('═══ Eyebalz Plugin Initialized ═══');
     logger.info('Platforms: Opinion.trade + Predict.fun (BNB Chain)');
     logger.info('Actions: ANALYZE_MARKET, GET_MARKETS, EXECUTE_TRADE, SCAN_ARBITRAGE, GET_POSITIONS, GET_AGENT_IDENTITY');
 
@@ -68,7 +68,7 @@ const flashPlugin: Plugin = {
   routes: [
     {
       type: 'GET',
-      path: '/api/flash/arb-scan',
+      path: '/api/eyebalz/arb-scan',
       handler: async (_req, res, runtime) => {
         try {
           const predictfun = new PredictFunService({ useTestnet: true });
@@ -97,7 +97,7 @@ const flashPlugin: Plugin = {
     },
     {
       type: 'GET',
-      path: '/api/flash/bundles',
+      path: '/api/eyebalz/bundles',
       handler: async (req, res) => {
         const limit = Number(req.query?.limit || 25);
         res.json({
@@ -109,7 +109,7 @@ const flashPlugin: Plugin = {
     },
     {
       type: 'GET',
-      path: '/api/flash/yield-status',
+      path: '/api/eyebalz/yield-status',
       handler: async (req, res, runtime) => {
         const router = new YieldRouter({
           minIdleUsd: Number(runtime.getSetting('YIELD_MIN_IDLE_USD') || process.env.YIELD_MIN_IDLE_USD || 500),
@@ -125,7 +125,7 @@ const flashPlugin: Plugin = {
     },
     {
       type: 'GET',
-      path: '/api/flash/agent-identity',
+      path: '/api/eyebalz/agent-identity',
       handler: async (_req, res, runtime) => {
         try {
           const erc8004Config = buildERC8004Config(runtime);

@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'flash-gateway',
+      name: 'eyebalz-gateway',
       cwd: './server',
       script: 'npx',
       args: 'tsx src/server.ts',
@@ -15,8 +15,8 @@ module.exports = {
       restart_delay: 5000,
       max_memory_restart: '512M',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      error_file: './logs/flash-gateway-error.log',
-      out_file: './logs/flash-gateway-out.log',
+      error_file: './logs/eyebalz-gateway-error.log',
+      out_file: './logs/eyebalz-gateway-out.log',
       merge_logs: true,
     },
   ],

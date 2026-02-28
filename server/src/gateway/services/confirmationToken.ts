@@ -12,7 +12,7 @@ function b64urlDecode(input: string): string {
 }
 
 function secret(): string {
-  return process.env.FLASH_GATEWAY_SIGNING_SECRET || process.env.FLASH_GATEWAY_DEV_SECRET || 'flash-dev-secret-change-me';
+  return process.env.EYEBALZ_GATEWAY_SIGNING_SECRET || process.env.EYEBALZ_GATEWAY_DEV_SECRET || 'eyebalz-dev-secret-change-me';
 }
 
 function sign(payloadB64: string): string {
@@ -20,7 +20,7 @@ function sign(payloadB64: string): string {
 }
 
 export function issueConfirmationToken(payload: Omit<QuoteTokenPayload, 'tokenVersion' | 'expiresAt'>): { token: string; expiresAt: number } {
-  const ttlSec = Number(process.env.FLASH_GATEWAY_QUOTE_TTL_SEC || 90);
+  const ttlSec = Number(process.env.EYEBALZ_GATEWAY_QUOTE_TTL_SEC || 90);
   const expiresAt = Date.now() + ttlSec * 1000;
   const fullPayload: QuoteTokenPayload = {
     tokenVersion: 1,

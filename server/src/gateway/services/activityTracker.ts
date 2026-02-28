@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { logger } from '../../lib/types.js';
 import type { ActivityEvent, BotStats } from '../types.ts';
 
-const LOG_DIR = '.flash';
+const LOG_DIR = '.eyebalz';
 const LOG_FILE = join(LOG_DIR, 'activity-log.jsonl');
 const RING_SIZE = 1000;
 

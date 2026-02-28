@@ -1,9 +1,9 @@
 services:
-  flash-gateway:
+  eyebalz-gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: flash-gateway
+    container_name: eyebalz-gateway
     ports:
       - "3000:3000"
     env_file:

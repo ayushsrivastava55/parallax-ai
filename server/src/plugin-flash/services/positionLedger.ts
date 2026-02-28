@@ -8,8 +8,8 @@ import type {
   TradeResult,
 } from "../types/index.js";
 
-const DEFAULT_LEDGER_PATH = path.join(process.cwd(), ".flash", "trade-fills.jsonl");
-const MAX_LEDGER_ROWS = Number(process.env.FLASH_LEDGER_MAX_ROWS || 10_000);
+const DEFAULT_LEDGER_PATH = path.join(process.cwd(), ".eyebalz", "trade-fills.jsonl");
+const MAX_LEDGER_ROWS = Number(process.env.EYEBALZ_LEDGER_MAX_ROWS || 10_000);
 
 export interface TradeFillRecord {
   recordType: "trade_fill_v1";
@@ -31,7 +31,7 @@ export interface TradeFillRecord {
 let appendQueue: Promise<void> = Promise.resolve();
 
 function ledgerPath(): string {
-  const configured = process.env.FLASH_POSITION_LEDGER_PATH || process.env.FLASH_LEDGER_PATH;
+  const configured = process.env.EYEBALZ_POSITION_LEDGER_PATH || process.env.EYEBALZ_LEDGER_PATH;
   return configured && configured.trim().length > 0 ? configured : DEFAULT_LEDGER_PATH;
 }
 

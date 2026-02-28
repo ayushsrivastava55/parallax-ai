@@ -66,7 +66,7 @@ export default memo(function AgentResponse({ blocks, onAction }: Props) {
         color: 'var(--t3)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-      }}>Flash</div>
+      }}>Eyebalz</div>
       <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rendered}
       </div>

@@ -1,9 +1,9 @@
-# Flash Gateway Rules
+# Eyebalz Gateway Rules
 
 ## Mandatory Rules
 
 1. Do not call protocol APIs directly (Predict.fun, Probable, Venus, chain contracts, blockchain RPCs).
-2. Use Flash Gateway HTTP endpoints only (`https://eyebalz.xyz/api/v1`).
+2. Use Eyebalz Gateway HTTP endpoints only (`https://eyebalz.xyz/api/v1`).
 3. **Never use, generate, or request private keys.** The gateway manages all wallets and signing. If you see `WALLET_NOT_CONFIGURED`, call `POST /v1/bots/register` — do NOT set `BNB_PRIVATE_KEY` or create wallets locally.
 4. **Register before trading.** Call `POST /v1/bots/register` before any other operation. This is idempotent.
 5. Do not execute trades without a valid `confirmationToken`.
@@ -42,7 +42,7 @@ Bots MAY execute trades without per-trade human approval IF all of the following
 
 ### Emergency Stop
 
-Setting `FLASH_GATEWAY_KILL_SWITCH=true` halts ALL execution immediately. When the kill switch is active:
+Setting `EYEBALZ_GATEWAY_KILL_SWITCH=true` halts ALL execution immediately. When the kill switch is active:
 
 - No new trades are placed
 - No yield deployments or recalls are executed

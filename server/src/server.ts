@@ -38,7 +38,7 @@ app.get('{*path}', (_req, res) => {
 
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
-  console.log(`Flash Gateway running on port ${PORT}`);
+  console.log(`Eyebalz Gateway running on port ${PORT}`);
   console.log(`  API:       http://localhost:${PORT}/v1/system/health`);
   console.log(`  Dashboard: http://localhost:${PORT}/`);
   console.log(`  Skills:    http://localhost:${PORT}/skill.md`);

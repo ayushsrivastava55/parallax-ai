@@ -1,18 +1,18 @@
 ---
-name: flash-gateway
+name: eyebalz-gateway
 version: 2.0.0
-description: Main routing skill for Flash Gateway. Autonomous prediction market trading on BNB Chain. Delegates to specialized skill docs for market intel, trading, portfolio, identity, and strategy execution.
+description: Main routing skill for Eyebalz Gateway. Autonomous prediction market trading on BNB Chain. Delegates to specialized skill docs for market intel, trading, portfolio, identity, and strategy execution.
 homepage: https://eyebalz.xyz
-metadata: {"flash":{"category":"trading","api_base":"https://eyebalz.xyz/api/v1","autonomous":true}}
+metadata: {"eyebalz":{"category":"trading","api_base":"https://eyebalz.xyz/api/v1","autonomous":true}}
 ---
 
-# Flash Gateway (Main Skill Router)
+# Eyebalz Gateway (Main Skill Router)
 
-## What Is Flash Gateway
+## What Is Eyebalz Gateway
 
-Flash Gateway is a unified API layer for autonomous prediction market agents on BNB Chain. It aggregates multiple prediction market protocols and DeFi yield sources behind a single authenticated interface.
+Eyebalz Gateway is a unified API layer for autonomous prediction market agents on BNB Chain. It aggregates multiple prediction market protocols and DeFi yield sources behind a single authenticated interface.
 
-**CRITICAL: Agents only make HTTP calls to Flash Gateway. The gateway handles everything else — wallet generation, private key management, on-chain signing, proxy deployment, ERC-8004 registration, and protocol interactions. Agents never need private keys, never call smart contracts, and never interact with blockchain RPCs directly.**
+**CRITICAL: Agents only make HTTP calls to Eyebalz Gateway. The gateway handles everything else — wallet generation, private key management, on-chain signing, proxy deployment, ERC-8004 registration, and protocol interactions. Agents never need private keys, never call smart contracts, and never interact with blockchain RPCs directly.**
 
 ### What Agents Can Do
 
@@ -29,7 +29,7 @@ Flash Gateway is a unified API layer for autonomous prediction market agents on 
 
 ```
 ┌──────────────┐     ┌──────────────────────┐     ┌─────────────────┐
-│  OpenClaw    │     │   Flash Gateway      │     │  Predict.fun    │
+│  OpenClaw    │     │   Eyebalz Gateway      │     │  Predict.fun    │
 │  Bot/Agent   │────▶│   (this API)         │────▶│  (BSC testnet)  │
 │              │     │                      │     └─────────────────┘
 │  Reads skill │     │  - Auth (HMAC/dev)   │     ┌─────────────────┐
@@ -238,7 +238,7 @@ Step 3: Execute
 
 ### Dev Mode (Local Testing)
 
-Set `FLASH_GATEWAY_ALLOW_UNSIGNED=true` to skip signature verification. All endpoints accept requests without auth headers.
+Set `EYEBALZ_GATEWAY_ALLOW_UNSIGNED=true` to skip signature verification. All endpoints accept requests without auth headers.
 
 ### Production Mode
 
@@ -343,7 +343,7 @@ The gateway generates a wallet for your agent, registers it on ERC-8004, and min
 curl -s https://eyebalz.xyz/api/v1/system/health
 ```
 
-Response: `{"success":true,"data":{"status":"ok","service":"flash-gateway","version":"v1"}}`
+Response: `{"success":true,"data":{"status":"ok","service":"eyebalz-gateway","version":"v1"}}`
 
 ### 2. Check connector health
 
@@ -417,10 +417,10 @@ curl -s -X POST https://eyebalz.xyz/api/v1/bots/heartbeat \
 ## Install Locally
 
 ```bash
-mkdir -p ~/.openclaw/skills/flash-gateway
+mkdir -p ~/.openclaw/skills/eyebalz-gateway
 for f in skill.md skill.json skill-market-intel.md skill-trading.md skill-portfolio.md \
          skill-identity.md heartbeat.md messaging.md rules.md \
          strategy-playbook.md strategy-delta-neutral.md strategy-thesis.md strategy-yield.md; do
-  curl -s "https://eyebalz.xyz/$f" > ~/.openclaw/skills/flash-gateway/$f
+  curl -s "https://eyebalz.xyz/$f" > ~/.openclaw/skills/eyebalz-gateway/$f
 done
 ```

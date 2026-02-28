@@ -30,12 +30,12 @@ function getHeader(req: GatewayRouteRequest, key: string): string {
 }
 
 function loadKeyMap(): Record<string, KeyRecord> {
-  const raw = process.env.FLASH_KEYS_JSON || '{}';
+  const raw = process.env.EYEBALZ_KEYS_JSON || '{}';
   try {
     const parsed = JSON.parse(raw) as Record<string, KeyRecord>;
     return parsed && typeof parsed === 'object' ? parsed : {};
   } catch (error) {
-    logger.warn({ error }, 'FLASH_KEYS_JSON invalid JSON');
+    logger.warn({ error }, 'EYEBALZ_KEYS_JSON invalid JSON');
     return {};
   }
 }
@@ -54,7 +54,7 @@ function computeSignature(req: GatewayRouteRequest, secret: string, agentId: str
 }
 
 function isWithinWindow(timestampMs: number, nowMs: number): boolean {
-  const windowSec = Number(process.env.FLASH_GATEWAY_REPLAY_WINDOW_SEC || 60);
+  const windowSec = Number(process.env.EYEBALZ_GATEWAY_REPLAY_WINDOW_SEC || 60);
   return Math.abs(nowMs - timestampMs) <= windowSec * 1000;
 }
 
@@ -66,24 +66,24 @@ function pruneNonces(nowMs: number): void {
 }
 
 export function authorizeGatewayRequest(req: GatewayRouteRequest): AuthResult | AuthFailure {
-  const allowUnsigned = process.env.FLASH_GATEWAY_ALLOW_UNSIGNED === 'true';
+  const allowUnsigned = process.env.EYEBALZ_GATEWAY_ALLOW_UNSIGNED === 'true';
   const keyMap = loadKeyMap();
 
   if (allowUnsigned && Object.keys(keyMap).length === 0) {
     return {
       ok: true,
       context: {
-        agentId: getHeader(req, 'X-Flash-Agent-Id') || 'unsigned-agent',
+        agentId: getHeader(req, 'X-Eyebalz-Agent-Id') || 'unsigned-agent',
         keyId: 'unsigned',
       },
     };
   }
 
-  const agentId = getHeader(req, 'X-Flash-Agent-Id');
-  const keyId = getHeader(req, 'X-Flash-Key-Id');
-  const timestamp = getHeader(req, 'X-Flash-Timestamp');
-  const nonce = getHeader(req, 'X-Flash-Nonce');
-  const signature = getHeader(req, 'X-Flash-Signature');
+  const agentId = getHeader(req, 'X-Eyebalz-Agent-Id');
+  const keyId = getHeader(req, 'X-Eyebalz-Key-Id');
+  const timestamp = getHeader(req, 'X-Eyebalz-Timestamp');
+  const nonce = getHeader(req, 'X-Eyebalz-Nonce');
+  const signature = getHeader(req, 'X-Eyebalz-Signature');
 
   if (!agentId || !keyId || !timestamp || !nonce || !signature) {
     return { ok: false, status: 401, code: 'AUTH_INVALID', message: 'Missing required auth headers' };

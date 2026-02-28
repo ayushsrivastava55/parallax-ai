@@ -16,7 +16,7 @@ export function YieldStatus() {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch('/api/flash/yield-status');
+        const res = await fetch('/api/eyebalz/yield-status');
         if (!res.ok) throw new Error('not ok');
         const json = await res.json();
         if (mounted && json.success && json.data) {

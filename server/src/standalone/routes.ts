@@ -274,14 +274,14 @@ function mergePositions(a: Position[], b: Position[]): Position[] {
 }
 
 function auditLog(event: string, details: Record<string, unknown>): void {
-  console.log('[FLASH_GATEWAY]', event, JSON.stringify(details));
+  console.log('[EYEBALZ_GATEWAY]', event, JSON.stringify(details));
 }
 
 /* ── Route handlers ───────────────────────────────────────────── */
 
 async function handleSystemHealth(_req: Request, res: Response): Promise<void> {
   const requestId = randomUUID();
-  respond(res, 200, asSuccess(requestId, { status: 'ok', service: 'flash-gateway', version: 'v1' }));
+  respond(res, 200, asSuccess(requestId, { status: 'ok', service: 'eyebalz-gateway', version: 'v1' }));
 }
 
 async function handleConnectorStatus(req: Request, res: Response): Promise<void> {
@@ -853,7 +853,7 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
     );
   }
 
-  const persona = parsed.data.persona || `flash-agent-${auth.context.agentId.slice(0, 8)}`;
+  const persona = parsed.data.persona || `eyebalz-agent-${auth.context.agentId.slice(0, 8)}`;
 
   // 1. Generate a fresh wallet for this agent
   const { ethers } = await import('ethers');

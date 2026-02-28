@@ -1,4 +1,4 @@
-# Flash Gateway Messaging Contract
+# Eyebalz Gateway Messaging Contract
 
 ## Intent Mapping
 

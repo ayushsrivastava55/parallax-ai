@@ -1,7 +1,7 @@
 import type { Platform } from '../../plugin-flash/types/index.ts';
 
 function allowedPlatforms(): Set<Platform> {
-  const raw = String(process.env.FLASH_GATEWAY_ALLOWED_PLATFORMS || 'predictfun,probable,xmarket');
+  const raw = String(process.env.EYEBALZ_GATEWAY_ALLOWED_PLATFORMS || 'predictfun,probable,xmarket');
   const parsed = raw
     .split(',')
     .map((s) => s.trim())
@@ -10,8 +10,8 @@ function allowedPlatforms(): Set<Platform> {
 }
 
 export function evaluateQuotePolicy(input: { platform: Platform; maxSlippageBps: number; quoteCostUsd: number }): { ok: true } | { ok: false; code: string; message: string } {
-  const maxOrderUsd = Number(process.env.FLASH_GATEWAY_MAX_ORDER_USD || 1000);
-  const maxSlippageBps = Number(process.env.FLASH_GATEWAY_MAX_SLIPPAGE_BPS || 300);
+  const maxOrderUsd = Number(process.env.EYEBALZ_GATEWAY_MAX_ORDER_USD || 1000);
+  const maxSlippageBps = Number(process.env.EYEBALZ_GATEWAY_MAX_SLIPPAGE_BPS || 300);
 
   if (!allowedPlatforms().has(input.platform)) {
     return { ok: false, code: 'POLICY_PLATFORM_BLOCKED', message: `Platform ${input.platform} is not allowed` };
@@ -29,7 +29,7 @@ export function evaluateQuotePolicy(input: { platform: Platform; maxSlippageBps:
 }
 
 export function evaluateExecutePolicy(input: { platform: Platform }): { ok: true } | { ok: false; code: string; message: string } {
-  if (process.env.FLASH_GATEWAY_KILL_SWITCH === 'true') {
+  if (process.env.EYEBALZ_GATEWAY_KILL_SWITCH === 'true') {
     return { ok: false, code: 'POLICY_KILL_SWITCH', message: 'Trading is disabled by kill switch' };
   }
 
