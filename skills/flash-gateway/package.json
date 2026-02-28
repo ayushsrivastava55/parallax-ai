@@ -6,7 +6,6 @@
   "api_base": "https://eyebalz.xyz/api/v1",
   "category": "trading",
   "autonomous": true,
-  "platforms": ["predictfun", "probable"],
   "files": {
     "skill": "/skill.md",
     "market_intel": "/skill-market-intel.md",

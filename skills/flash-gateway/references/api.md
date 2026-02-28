@@ -27,7 +27,7 @@ Request:
 ```json
 {
   "status": "active",
-  "platforms": ["predictfun", "opinion"],
+  "platforms": ["predictfun", "probable"],
   "limit": 20
 }
 ```

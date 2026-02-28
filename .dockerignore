@@ -1,0 +1,34 @@
+node_modules
+**/node_modules
+.git
+.gitignore
+
+# Env files (pass via docker run --env-file)
+**/.env
+**/.env.*
+
+# Build outputs (rebuilt in Docker)
+flash-agent/dist
+frontend/dist
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+**/.DS_Store
+
+# Contracts (not needed at runtime)
+contracts/node_modules
+contracts/artifacts
+contracts/cache
+contracts/deployments
+
+# Tests
+**/*.test.ts
+**/*.spec.ts
+**/cypress
+
+# Misc
+**/*.log
+**/logs
+check-chain.ts
