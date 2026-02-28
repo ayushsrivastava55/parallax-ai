@@ -9,16 +9,23 @@ import { extractMarketUrls } from '../plugin-flash/utils/urlParser.ts';
 import { searchMarkets } from '../plugin-flash/utils/matching.ts';
 import type { Market, ArbOpportunity, CrossPlatformPrice } from '../plugin-flash/types/index.ts';
 
-// MiniMax M2.5 via OpenAI-compatible chat completions API
-const RESEARCH_MODEL = process.env.OPENAI_LARGE_MODEL || 'MiniMax-M2.5';
-const RESEARCH_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.minimax.io/v1';
-
+// Research model: prefer OpenAI gpt-5-mini, fall back to MiniMax M2.5
 function getResearchModel(): OpenAIChatCompletionsModel {
+  if (process.env.OPENAI_API_KEY) {
+    const model = process.env.OPENAI_LARGE_MODEL || 'gpt-5-mini';
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    });
+    return new OpenAIChatCompletionsModel(client, model);
+  }
+  // Fallback: MiniMax M2.5
+  const model = process.env.OPENAI_LARGE_MODEL || 'MiniMax-M2.5';
   const client = new OpenAI({
-    apiKey: process.env.MINIMAX_API_KEY || process.env.OPENAI_API_KEY,
-    baseURL: RESEARCH_BASE_URL,
+    apiKey: process.env.MINIMAX_API_KEY || '',
+    baseURL: process.env.OPENAI_BASE_URL || 'https://api.minimax.io/v1',
   });
-  return new OpenAIChatCompletionsModel(client, RESEARCH_MODEL);
+  return new OpenAIChatCompletionsModel(client, model);
 }
 
 /** Web search via Serper Google Search API */
@@ -26,6 +33,7 @@ const webSearch = tool({
   name: 'search',
   description: 'Search the web for recent information using Google Search.',
   parameters: z.object({ query: z.string().describe('Search query') }),
+  timeoutMs: 10_000,
   execute: async ({ query }) => {
     const res = await fetch('https://google.serper.dev/search', {
       method: 'POST',
@@ -35,7 +43,10 @@ const webSearch = tool({
       },
       body: JSON.stringify({ q: query, num: 5 }),
     });
-    if (!res.ok) throw new Error(`Serper error ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Serper error ${res.status}: ${body}`);
+    }
     const data = await res.json();
     const results = (data.organic || []).slice(0, 5).map((r: any) => ({
       title: r.title,
@@ -51,15 +62,18 @@ const browse = tool({
   name: 'browse',
   description: 'Read the content of a web page URL and return its text.',
   parameters: z.object({ url: z.string().describe('URL to read') }),
+  timeoutMs: 10_000,
   execute: async ({ url }) => {
     const res = await fetch(`https://r.jina.ai/${url}`, {
       headers: {
         Accept: 'text/plain',
         Authorization: `Bearer ${process.env.JINA_API_KEY || ''}`,
       },
-      signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) throw new Error(`Jina error ${res.status}: ${await res.text()}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Jina error ${res.status}: ${body}`);
+    }
     const text = await res.text();
     return text.slice(0, 5000);
   },
@@ -183,6 +197,9 @@ function parseResearchJson(text: string): any | null {
 }
 
 export async function analyzeWithAgent(query: string, allMarkets: Market[]): Promise<AnalysisResult> {
+  const t0 = Date.now();
+  const lap = (label: string) => console.log(`[ANALYZE] ${label} — ${Date.now() - t0}ms`);
+
   const predictfun = new PredictFunService({ useTestnet: true });
   const opinion = makeOpinion();
   const arbEngine = new ArbEngine({ predictfun, opinion });
@@ -197,6 +214,7 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
       allMarkets.find(
         (m) => m.platform === parsed.platform && (m.slug === parsed.marketSlug || m.id === parsed.marketId),
       ) || allMarkets[0];
+    lap('step1: url match');
   } else {
     // Use Agent to extract search query from thesis (MiniMax M2.5)
     const extractAgent = new Agent({
@@ -207,6 +225,7 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     });
 
     const extractResult = await run(extractAgent, query);
+    lap('step1: thesis-extractor done');
     const searchQuery = extractResult.finalOutput.trim();
     const matched = searchMarkets(allMarkets, searchQuery);
     targetMarket = matched[0] || allMarkets[0];
@@ -215,6 +234,8 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
   if (!targetMarket) {
     throw new Error('No matching prediction markets found.');
   }
+
+  lap('step1: market found');
 
   // Step 2: Get current prices
   try {
@@ -227,6 +248,8 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
   } catch {
     // Use existing prices
   }
+
+  lap('step2: prices fetched');
 
   // Step 3: Cross-platform price comparison
   const crossPlatformPrices: CrossPlatformPrice[] = [];
@@ -258,6 +281,8 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
       url: targetMarket.url,
     });
   }
+
+  lap('step3: cross-platform prices done');
 
   // Step 4: Deep research via Agent + direct Serper/Jina tools
   const yesPrice = targetMarket.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes')?.price ?? 0.5;
@@ -306,6 +331,8 @@ User thesis: "${query}"
 Start by searching for recent relevant information, then provide your JSON assessment.`;
 
   const researchResult = await run(researchAgent, researchPrompt, { maxTurns: 10 });
+  lap('step4: research agent done');
+  console.log('[ANALYZE] research raw output:', researchResult.finalOutput.slice(0, 500));
   const parsed = parseResearchJson(researchResult.finalOutput);
 
   if (!parsed || !Array.isArray(parsed.supporting) || typeof parsed.modelProbability !== 'number') {
@@ -360,6 +387,7 @@ Start by searching for recent relevant information, then provide your JSON asses
     recommendation = `Avoid — edge is too small (${(edge * 100).toFixed(1)}%) for the risk level`;
   }
 
+  lap('step6: done — total');
   return {
     market: targetMarket,
     crossPlatformPrices,
