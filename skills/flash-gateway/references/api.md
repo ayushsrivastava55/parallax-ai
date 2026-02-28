@@ -1,15 +1,15 @@
-# Flash Gateway API Reference
+# Eyebalz Gateway API Reference
 
 Base URL:
 
-`$FLASH_GATEWAY_BASE_URL` (example: `http://localhost:3001`)
+`$EYEBALZ_GATEWAY_BASE_URL` (example: `http://localhost:3001`)
 
 ## Required Environment Variables
 
-- `FLASH_GATEWAY_BASE_URL`
-- `FLASH_AGENT_ID`
-- `FLASH_KEY_ID`
-- `FLASH_KEY_SECRET`
+- `EYEBALZ_GATEWAY_BASE_URL`
+- `EYEBALZ_AGENT_ID`
+- `EYEBALZ_KEY_ID`
+- `EYEBALZ_KEY_SECRET`
 
 ## Signed Request Example
 

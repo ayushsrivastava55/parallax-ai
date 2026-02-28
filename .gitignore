@@ -7,7 +7,7 @@ cache/
 typechain-types/
 *.log
 .DS_Store
-.flash/
+.eyebalz/
 bun.lock
 
 # AI tooling metadata/workspaces

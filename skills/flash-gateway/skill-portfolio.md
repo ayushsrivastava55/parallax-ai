@@ -1,12 +1,12 @@
 ---
-name: flash-portfolio
+name: eyebalz-portfolio
 version: 2.0.0
-description: Position tracking, PnL reporting, and yield management through Flash Gateway.
-author: flash-team
+description: Position tracking, PnL reporting, and yield management through Eyebalz Gateway.
+author: eyebalz-team
 tags: [portfolio, positions, pnl, yield, capital-management]
 ---
 
-# Flash Skill: Portfolio and Yield
+# Eyebalz Skill: Portfolio and Yield
 
 Use this skill when the user asks about their positions, profit and loss,
 holdings, idle capital, or yield strategies.

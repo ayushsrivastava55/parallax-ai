@@ -1,6 +1,6 @@
 {
-  "name": "flash-gateway",
-  "description": "Flash Gateway — prediction market trading API on BNB Chain",
+  "name": "eyebalz-gateway",
+  "description": "Eyebalz Gateway — prediction market trading API on BNB Chain",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/src/index.js",

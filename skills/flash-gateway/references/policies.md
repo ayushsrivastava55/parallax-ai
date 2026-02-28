@@ -1,4 +1,4 @@
-# Flash Gateway Policy Rules
+# Eyebalz Gateway Policy Rules
 
 ## Hard Constraints
 

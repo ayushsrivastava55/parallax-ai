@@ -1,5 +1,5 @@
 {
-  "name": "flash-gateway",
+  "name": "eyebalz-gateway",
   "version": "2.0.0",
   "description": "Autonomous prediction market trading skill for OpenClaw bots on BNB Chain",
   "homepage": "https://eyebalz.xyz",
@@ -30,7 +30,7 @@
   },
   "auth": {
     "scheme": "hmac-sha256",
-    "headers": ["X-Flash-Agent-Id", "X-Flash-Key-Id", "X-Flash-Timestamp", "X-Flash-Nonce", "X-Flash-Signature"]
+    "headers": ["X-Eyebalz-Agent-Id", "X-Eyebalz-Key-Id", "X-Eyebalz-Timestamp", "X-Eyebalz-Nonce", "X-Eyebalz-Signature"]
   },
   "execution": {
     "requires_confirmation_token": true,

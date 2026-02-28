@@ -1,6 +1,6 @@
 /**
  * Lightweight type definitions replacing @elizaos/core.
- * Only the types actually used by Flash Gateway source files.
+ * Only the types actually used by Eyebalz Gateway source files.
  */
 
 export interface IAgentRuntime {

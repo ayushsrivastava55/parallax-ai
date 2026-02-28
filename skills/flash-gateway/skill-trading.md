@@ -1,12 +1,12 @@
 ---
-name: flash-trading
+name: eyebalz-trading
 version: 2.0.0
-description: Quote and execute prediction market trades through Flash Gateway.
-author: flash-team
+description: Quote and execute prediction market trades through Eyebalz Gateway.
+author: eyebalz-team
 tags: [trading, execution, orders, prediction-markets]
 ---
 
-# Flash Skill: Trading Execution
+# Eyebalz Skill: Trading Execution
 
 Use this skill when the user asks to buy, sell, place an order, execute a trade,
 or confirm a pending quote. Trading always follows a strict 2-step flow.

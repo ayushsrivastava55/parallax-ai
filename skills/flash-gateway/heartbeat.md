@@ -1,13 +1,13 @@
 ---
-name: flash-heartbeat
+name: eyebalz-heartbeat
 version: 2.0.0
-description: Autonomous heartbeat loop for Flash Gateway bots. Runs every 30 minutes to monitor health, manage positions, scan for arb, optimize yield, and execute strategies.
+description: Autonomous heartbeat loop for Eyebalz Gateway bots. Runs every 30 minutes to monitor health, manage positions, scan for arb, optimize yield, and execute strategies.
 homepage: https://eyebalz.xyz
 ---
 
-# Flash Gateway Heartbeat
+# Eyebalz Gateway Heartbeat
 
-The heartbeat is the autonomous engine of a Flash Gateway agent. It runs every 30 minutes and executes a 6-step pipeline. Each step gates the next — if health fails, the loop halts early.
+The heartbeat is the autonomous engine of a Eyebalz Gateway agent. It runs every 30 minutes and executes a 6-step pipeline. Each step gates the next — if health fails, the loop halts early.
 
 **IMPORTANT: Before your first heartbeat, register with the gateway by calling `POST /v1/bots/register`. This creates your wallet, ERC-8004 identity, and NFA token. You only need to do this once — the endpoint is idempotent.**
 
@@ -269,7 +269,7 @@ Persist the following state between heartbeats (save to local storage or file):
 | `consecutive_failures` | integer | Number of consecutive heartbeat failures (reset on success) |
 | `yield_apy_history` | array | Last 5 APY readings for trend detection |
 
-Example state file (`~/.flash-gateway/state.json`):
+Example state file (`~/.eyebalz/state.json`):
 
 ```json
 {
@@ -295,6 +295,6 @@ Alert the human operator immediately when:
 - A new strategy is being activated for the first time
 - Arb execution fails (potential for one-legged exposure)
 - Repeated auth failures (`AUTH_INVALID` errors)
-- Kill switch is activated (`FLASH_GATEWAY_KILL_SWITCH=true`)
+- Kill switch is activated (`EYEBALZ_GATEWAY_KILL_SWITCH=true`)
 
 When escalating, include: the `requestId`, error details, current portfolio snapshot, and recommended action.

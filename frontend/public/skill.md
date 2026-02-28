@@ -246,11 +246,11 @@ Every request must include these headers:
 
 | Header | Value |
 |--------|-------|
-| `X-Flash-Agent-Id` | Your agent ID |
-| `X-Flash-Key-Id` | Your API key ID |
-| `X-Flash-Timestamp` | Unix epoch seconds |
-| `X-Flash-Nonce` | Unique per-request (UUIDv4) |
-| `X-Flash-Signature` | HMAC-SHA256 hex signature |
+| `X-Eyebalz-Agent-Id` | Your agent ID |
+| `X-Eyebalz-Key-Id` | Your API key ID |
+| `X-Eyebalz-Timestamp` | Unix epoch seconds |
+| `X-Eyebalz-Nonce` | Unique per-request (UUIDv4) |
+| `X-Eyebalz-Signature` | HMAC-SHA256 hex signature |
 
 **Canonical string format:**
 
