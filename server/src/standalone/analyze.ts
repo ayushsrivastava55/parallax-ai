@@ -197,9 +197,6 @@ function parseResearchJson(text: string): any | null {
 }
 
 export async function analyzeWithAgent(query: string, allMarkets: Market[]): Promise<AnalysisResult> {
-  const t0 = Date.now();
-  const lap = (label: string) => console.log(`[ANALYZE] ${label} — ${Date.now() - t0}ms`);
-
   const predictfun = new PredictFunService({ useTestnet: true });
   const opinion = makeOpinion();
   const arbEngine = new ArbEngine({ predictfun, opinion });
@@ -214,7 +211,7 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
       allMarkets.find(
         (m) => m.platform === parsed.platform && (m.slug === parsed.marketSlug || m.id === parsed.marketId),
       ) || allMarkets[0];
-    lap('step1: url match');
+
   } else {
     // Use Agent to extract search query from thesis (MiniMax M2.5)
     const extractAgent = new Agent({
@@ -225,7 +222,7 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     });
 
     const extractResult = await run(extractAgent, query);
-    lap('step1: thesis-extractor done');
+
     const searchQuery = extractResult.finalOutput.trim();
     const matched = searchMarkets(allMarkets, searchQuery);
     targetMarket = matched[0] || allMarkets[0];
@@ -235,7 +232,6 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     throw new Error('No matching prediction markets found.');
   }
 
-  lap('step1: market found');
 
   // Step 2: Get current prices
   try {
@@ -249,7 +245,6 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     // Use existing prices
   }
 
-  lap('step2: prices fetched');
 
   // Step 3: Cross-platform price comparison
   const crossPlatformPrices: CrossPlatformPrice[] = [];
@@ -282,7 +277,6 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
     });
   }
 
-  lap('step3: cross-platform prices done');
 
   // Step 4: Deep research via Agent + direct Serper/Jina tools
   const yesPrice = targetMarket.outcomes.find((o) => o.label === 'YES' || o.label === 'Yes')?.price ?? 0.5;
@@ -293,18 +287,18 @@ export async function analyzeWithAgent(query: string, allMarkets: Market[]): Pro
 
 Your job is to research a prediction market and provide an evidence-based assessment.
 
-WORKFLOW:
-1. Use the "search" tool to find recent news, data, and expert analysis relevant to the market question. Run at least 2-3 different searches with varied queries.
-2. Use the "browse" tool to read the most promising articles for deeper context.
-3. Synthesize ALL findings into your final assessment.
+WORKFLOW — you MUST follow these steps in order and STOP after step 3:
+1. Call "search" twice with two different queries relevant to the market question.
+2. Call "browse" on the single most promising URL from search results.
+3. STOP calling tools. Output your final JSON immediately.
+
+Do NOT call more than 2 searches and 1 browse. After those 3 tool calls, you MUST respond with your JSON.
 
 IMPORTANT:
-- Search for CURRENT information — recent news, statistics, expert opinions, and data.
-- Cite specific facts, dates, and numbers from your research in your supporting/contradicting points.
-- Each supporting/contradicting point should reference what you actually found, not generic reasoning.
+- Cite specific facts, dates, and numbers from your research.
 - Include a "sources" array with title + URL for every source you used.
 
-After completing your research, respond with ONLY this JSON:
+Respond with ONLY this JSON (no markdown, no explanation):
 {
   "supporting": ["evidence point 1 (source: ...)", "evidence point 2 (source: ...)", ...],
   "contradicting": ["evidence point 1 (source: ...)", "evidence point 2 (source: ...)", ...],
@@ -313,9 +307,7 @@ After completing your research, respond with ONLY this JSON:
   "confidence": "Low" | "Medium" | "Medium-High" | "High",
   "reasoning": "brief synthesis of your research",
   "sources": [{"title": "...", "url": "...", "snippet": "key quote or fact"}, ...]
-}
-
-Respond with ONLY the JSON object after you have completed all your research. No markdown, no explanation.`,
+}`,
     model: getResearchModel(),
     tools: [webSearch, browse],
   });
@@ -331,8 +323,7 @@ User thesis: "${query}"
 Start by searching for recent relevant information, then provide your JSON assessment.`;
 
   const researchResult = await run(researchAgent, researchPrompt, { maxTurns: 10 });
-  lap('step4: research agent done');
-  console.log('[ANALYZE] research raw output:', researchResult.finalOutput.slice(0, 500));
+
   const parsed = parseResearchJson(researchResult.finalOutput);
 
   if (!parsed || !Array.isArray(parsed.supporting) || typeof parsed.modelProbability !== 'number') {
@@ -387,7 +378,7 @@ Start by searching for recent relevant information, then provide your JSON asses
     recommendation = `Avoid — edge is too small (${(edge * 100).toFixed(1)}%) for the risk level`;
   }
 
-  lap('step6: done — total');
+
   return {
     market: targetMarket,
     crossPlatformPrices,

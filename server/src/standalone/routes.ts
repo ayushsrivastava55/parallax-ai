@@ -879,12 +879,10 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
       const gatewayWallet = new ethers.Wallet(ercConfig.privateKey, provider);
 
       // Register on IdentityRegistry (gateway wallet pays gas, agent wallet gets the identity)
+      const { IDENTITY_REGISTRY_ABI } = await import('../plugin-flash/services/abis/erc8004Abis.ts');
       const identityRegistry = new ethers.Contract(
         ercConfig.identityRegistryAddress,
-        [
-          'function register(string calldata metadataURI) external returns (uint256)',
-          'event Registered(uint256 indexed agentId, address indexed owner)',
-        ],
+        IDENTITY_REGISTRY_ABI,
         gatewayWallet,
       );
 
@@ -919,12 +917,10 @@ async function handleAgentRegister(req: Request, res: Response): Promise<void> {
       // 3. Mint FlashAgent NFA (if contract is configured)
       if (ercConfig.flashAgentAddress && erc8004AgentId !== undefined) {
         try {
+          const { FLASH_AGENT_ABI } = await import('../plugin-flash/services/abis/erc8004Abis.ts');
           const flashAgent = new ethers.Contract(
             ercConfig.flashAgentAddress,
-            [
-              'function mintAgent(address to, string calldata persona, string calldata experience, string calldata uri) external returns (uint256)',
-              'event AgentMinted(uint256 indexed tokenId, address indexed owner)',
-            ],
+            [...FLASH_AGENT_ABI, 'function mintAgent(address to, string persona, string experience, string uri) returns (uint256)', 'event AgentMinted(uint256 indexed tokenId, address indexed owner)'],
             gatewayWallet,
           );
 
