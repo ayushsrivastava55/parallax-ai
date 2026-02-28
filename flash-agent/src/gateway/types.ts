@@ -35,6 +35,55 @@ export interface GatewayAuthContext {
   keyId: string;
 }
 
+/* ── Bot Registry ─────────────────────────────────────────────── */
+
+export type BotStatus = 'active' | 'idle' | 'stale';
+
+export interface BotRecord {
+  agentId: string;
+  keyId: string;
+  registeredAt: string;
+  lastSeenAt: string;
+  lastHeartbeatAt: string | null;
+  totalRequests: number;
+  totalTrades: number;
+  totalVolume: number;
+  activeStrategies: string[];
+  status: BotStatus;
+}
+
+export interface ActivityEvent {
+  id: string;
+  agentId: string;
+  type: string;
+  timestamp: string;
+  details: Record<string, unknown>;
+}
+
+export interface BotStats {
+  agentId: string;
+  totalTrades: number;
+  successfulTrades: number;
+  totalVolume: number;
+  totalPnl: number;
+  winRate: number;
+  strategiesRun: string[];
+  firstSeen: string;
+  lastSeen: string;
+  heartbeatsReceived: number;
+}
+
+export interface PlatformStats {
+  totalBots: number;
+  activeBots: number;
+  totalVolume: number;
+  totalTrades: number;
+  activeStrategies: number;
+  connectorHealth: Record<string, boolean>;
+}
+
+/* ── Quote tokens ─────────────────────────────────────────────── */
+
 export interface QuoteTokenPayload {
   tokenVersion: 1;
   agentId: string;

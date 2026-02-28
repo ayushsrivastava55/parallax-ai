@@ -23,6 +23,8 @@ import { issueConfirmationToken, verifyAndConsumeConfirmationToken } from '../se
 import { evaluateExecutePolicy, evaluateQuotePolicy } from '../services/policyEngine.ts';
 import { auditGatewayEvent } from '../services/auditLog.ts';
 import { getConnectorHealth } from '../services/connectorHealth.ts';
+import { ensureBotRegistered, recordBotTrade } from '../services/botRegistry.ts';
+import { recordActivity } from '../services/activityTracker.ts';
 
 const idempotencyStore = new Map<string, { createdAt: number; response: GatewayResponse<unknown> }>();
 
@@ -83,6 +85,11 @@ function requireAuth(req: GatewayRouteRequest, requestId: string): { ok: true; c
     };
   }
   return { ok: true, context: auth.context };
+}
+
+function trackRequest(requestId: string, agentId: string, keyId: string, type: string, details: Record<string, unknown> = {}): void {
+  ensureBotRegistered(agentId, keyId);
+  recordActivity({ id: requestId, agentId, type, timestamp: nowIso(), details });
 }
 
 function maybeOpinion(runtime: IAgentRuntime): OpinionService {
@@ -181,6 +188,8 @@ async function handleListMarkets(req: GatewayRouteRequest, res: any, runtime: IA
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
 
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'markets.list');
+
   const parsed = listMarketsSchema.safeParse(parseBody(req));
   if (!parsed.success) {
     return respond(res, 400, asFailure(requestId, 'VALIDATION_ERROR', 'Invalid list payload', { issues: parsed.error.issues }));
@@ -216,6 +225,8 @@ async function handleAnalyzeMarket(req: GatewayRouteRequest, res: any, runtime: 
   const requestId = randomUUID();
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'markets.analyze');
 
   const parsed = analyzeMarketSchema.safeParse(parseBody(req));
   if (!parsed.success) {
@@ -267,6 +278,8 @@ async function handleTradeQuote(req: GatewayRouteRequest, res: any, runtime: IAg
   const requestId = randomUUID();
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'trades.quote');
 
   const parsed = tradeQuoteSchema.safeParse(parseBody(req));
   if (!parsed.success) {
@@ -349,6 +362,8 @@ async function handleTradeExecute(req: GatewayRouteRequest, res: any, runtime: I
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
 
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'trades.execute');
+
   const idempotencyKey = header(req, 'Idempotency-Key');
   if (!idempotencyKey) {
     return respond(res, 400, asFailure(requestId, 'VALIDATION_ERROR', 'Missing Idempotency-Key header'));
@@ -415,6 +430,7 @@ async function handleTradeExecute(req: GatewayRouteRequest, res: any, runtime: I
         outcomeLabel: payload.side,
         source: 'gateway',
       });
+      recordBotTrade(auth.context.agentId, result.filledSize * result.filledPrice);
     }
 
     try {
@@ -460,6 +476,8 @@ async function handlePositionsList(req: GatewayRouteRequest, res: any, runtime: 
   const requestId = randomUUID();
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'positions.list');
 
   const parsed = positionsListSchema.safeParse(parseBody(req));
   if (!parsed.success) {
@@ -513,6 +531,8 @@ async function handleArbScan(req: GatewayRouteRequest, res: any, runtime: IAgent
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
 
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'arb.scan');
+
   const parsed = arbScanSchema.safeParse(parseBody(req));
   if (!parsed.success) {
     return respond(res, 400, asFailure(requestId, 'VALIDATION_ERROR', 'Invalid arb payload', { issues: parsed.error.issues }));
@@ -550,6 +570,8 @@ async function handleYieldManage(req: GatewayRouteRequest, res: any, runtime: IA
   const requestId = randomUUID();
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'yield.manage');
 
   const parsed = yieldManageSchema.safeParse(parseBody(req));
   if (!parsed.success) {
@@ -591,6 +613,8 @@ async function handleAgentIdentity(req: GatewayRouteRequest, res: any, runtime: 
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
 
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'agent.identity');
+
   try {
     const ercConfig = buildERC8004Config(runtime);
     if (!ercConfig) {
@@ -625,6 +649,8 @@ async function handleConnectorStatus(req: GatewayRouteRequest, res: any, runtime
   const requestId = randomUUID();
   const auth = requireAuth(req, requestId);
   if (!auth.ok) return respond(res, auth.status, auth.body);
+
+  trackRequest(requestId, auth.context.agentId, auth.context.keyId, 'system.connectors');
 
   try {
     const health = await getConnectorHealth(runtime);

@@ -22,7 +22,7 @@ import { ArbEngine } from './services/arbEngine.ts';
 import { getBundles } from './services/bundleStore.ts';
 import { YieldRouter } from './services/yieldRouter.ts';
 import { ERC8004Service, buildERC8004Config } from './services/erc8004.ts';
-import { createGatewayRoutes } from '../gateway/index.ts';
+import { createGatewayRoutes, createBotRoutes } from '../gateway/index.ts';
 
 const flashPlugin: Plugin = {
   name: 'flash',
@@ -162,6 +162,7 @@ const flashPlugin: Plugin = {
       },
     },
     ...createGatewayRoutes(),
+    ...createBotRoutes(),
   ],
 };
 

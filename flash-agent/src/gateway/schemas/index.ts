@@ -45,6 +45,26 @@ export const yieldManageSchema = z.object({
   openTradeDemandUsd: z.number().nonnegative().optional(),
 });
 
+/* ── Bot schemas ──────────────────────────────────────────────── */
+
+export const botsListSchema = z.object({
+  status: z.enum(['active', 'idle', 'stale', 'all']).default('all'),
+});
+
+export const botActivitySchema = z.object({
+  limit: z.number().int().positive().max(200).default(50),
+});
+
+export const botHeartbeatSchema = z.object({
+  strategies: z.array(z.string()).optional(),
+  state: z.record(z.string(), z.unknown()).optional(),
+});
+
+/* ── Inferred types ───────────────────────────────────────────── */
+
+export type BotsListInput = z.infer<typeof botsListSchema>;
+export type BotActivityInput = z.infer<typeof botActivitySchema>;
+export type BotHeartbeatInput = z.infer<typeof botHeartbeatSchema>;
 export type ListMarketsInput = z.infer<typeof listMarketsSchema>;
 export type AnalyzeMarketInput = z.infer<typeof analyzeMarketSchema>;
 export type TradeQuoteInput = z.infer<typeof tradeQuoteSchema>;
